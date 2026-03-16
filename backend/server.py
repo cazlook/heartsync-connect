@@ -9,12 +9,21 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime
-from models import UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, Match, ChatMessage, ChatMessageCreate, Notification, FCMToken
+from models import (
+    UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, 
+    Match, ChatMessage, ChatMessageCreate, Notification, FCMToken,
+    HeartRateReading, HeartRateReadingCreate, EmotionalReactionDB, EmotionalReactionCreate,
+    BiometricStats, TopReaction
+)
 from auth import register_user, login_user
 from dependencies import get_current_user_dependency, get_db
 from notifications import (
     get_unread_count, mark_as_read, mark_all_as_read,
     notify_new_match, notify_new_message
+)
+from biometrics import (
+    calculate_stats, get_top_reactions, get_bpm_timeline,
+    get_reactions_history, get_weekly_summary
 )
 import socketio
 
@@ -303,6 +312,95 @@ async def register_fcm_token(
     )
     
     return {"success": True}
+
+# ===== BIOMETRICS & BPM ROUTES =====
+@api_router.post("/biometrics/heartrate")
+async def save_heartrate_reading(
+    reading: HeartRateReadingCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Save heart rate reading"""
+    reading_doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "bpm": reading.bpm,
+        "context": reading.context,
+        "timestamp": datetime.utcnow()
+    }
+    
+    await database.heart_rate_readings.insert_one(reading_doc)
+    return HeartRateReading(**reading_doc)
+
+@api_router.post("/biometrics/reaction")
+async def save_emotional_reaction(
+    reaction: EmotionalReactionCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Save emotional reaction to a profile"""
+    reaction_doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "profile_id": reaction.profile_id,
+        "profile_name": reaction.profile_name,
+        "bpm_before": reaction.bpm_before,
+        "bpm_peak": reaction.bpm_peak,
+        "bpm_delta": reaction.bpm_delta,
+        "intensity": reaction.intensity,
+        "timestamp": datetime.utcnow()
+    }
+    
+    await database.emotional_reactions.insert_one(reaction_doc)
+    return EmotionalReactionDB(**reaction_doc)
+
+@api_router.get("/biometrics/stats")
+async def get_biometric_stats(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get biometric statistics for current user"""
+    stats = await calculate_stats(database, current_user.id)
+    return stats
+
+@api_router.get("/biometrics/top-reactions")
+async def get_top_emotional_reactions(
+    limit: int = Query(default=10, le=50),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get top profiles that caused strongest reactions"""
+    reactions = await get_top_reactions(database, current_user.id, limit)
+    return reactions
+
+@api_router.get("/biometrics/timeline")
+async def get_heartrate_timeline(
+    days: int = Query(default=7, le=30),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get BPM timeline for the last N days"""
+    timeline = await get_bpm_timeline(database, current_user.id, days)
+    return {"timeline": timeline}
+
+@api_router.get("/biometrics/history")
+async def get_reaction_history(
+    days: int = Query(default=30, le=90),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get reaction history for the last N days"""
+    history = await get_reactions_history(database, current_user.id, days)
+    return {"reactions": history}
+
+@api_router.get("/biometrics/weekly-summary")
+async def get_biometric_weekly_summary(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get weekly summary of biometric data"""
+    summary = await get_weekly_summary(database, current_user.id)
+    return summary
 
 # Include the router in the main app
 fastapi_app.include_router(api_router)

@@ -1,17 +1,49 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, ChevronLeft, ChevronRight } from "lucide-react";
 import { mockProfiles, type UserProfile, type EmotionalReaction } from "@/lib/mock-data";
 import { useHeartbeatSimulator } from "@/lib/heartbeat-simulator";
 import HeartRateDisplay from "@/components/HeartRateDisplay";
+import { useAuth } from "@/contexts/AuthContext";
+import axios from "axios";
+
+const BACKEND_URL = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
 
 export default function DiscoveryPage() {
+  const { token } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [reactions, setReactions] = useState<EmotionalReaction[]>([]);
   const [direction, setDirection] = useState(0);
   const { bpm, isReacting, reactionIntensity, triggerRandomReaction } = useHeartbeatSimulator();
+  const lastBpmRef = useRef(72);
+  const lastSavedBpmRef = useRef(Date.now());
 
   const profile = mockProfiles[currentIndex];
+
+  // Save heart rate reading periodically
+  useEffect(() => {
+    if (!token) return;
+    
+    const saveHeartRate = async () => {
+      // Save every 5 seconds
+      const now = Date.now();
+      if (now - lastSavedBpmRef.current > 5000) {
+        try {
+          await axios.post(
+            `${BACKEND_URL}/api/biometrics/heartrate`,
+            { bpm, context: 'browsing' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          lastSavedBpmRef.current = now;
+        } catch (error) {
+          // Silently fail
+        }
+      }
+    };
+    
+    const interval = setInterval(saveHeartRate, 5000);
+    return () => clearInterval(interval);
+  }, [bpm, token]);
 
   const goNext = () => {
     if (currentIndex < mockProfiles.length - 1) {
@@ -33,7 +65,30 @@ export default function DiscoveryPage() {
   }, [currentIndex, triggerRandomReaction]);
 
   useEffect(() => {
-    if (isReacting) {
+    if (isReacting && token) {
+      // Save reaction to backend
+      const saveReaction = async () => {
+        try {
+          await axios.post(
+            `${BACKEND_URL}/api/biometrics/reaction`,
+            {
+              profile_id: profile.id,
+              profile_name: profile.name,
+              bpm_before: lastBpmRef.current,
+              bpm_peak: bpm,
+              bpm_delta: bpm - lastBpmRef.current,
+              intensity: reactionIntensity
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } catch (error) {
+          // Silently fail
+        }
+      };
+      
+      saveReaction();
+      lastBpmRef.current = bpm;
+      
       setReactions((prev) => {
         if (prev.find((r) => r.profileId === profile.id)) return prev;
         return [...prev, {
@@ -44,7 +99,7 @@ export default function DiscoveryPage() {
         }];
       });
     }
-  }, [isReacting, profile.id, bpm, reactionIntensity]);
+  }, [isReacting, profile.id, bpm, reactionIntensity, token]);
 
   const hasReacted = reactions.some((r) => r.profileId === profile.id);
 

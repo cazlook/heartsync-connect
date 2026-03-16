@@ -49,6 +49,54 @@ class HeartRateReaction(BaseModel):
     timestamp: datetime
     intensity: str  # low, medium, high
 
+# Biometric Models
+class HeartRateReading(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    bpm: int
+    context: str = "browsing"  # browsing, chatting, event
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class HeartRateReadingCreate(BaseModel):
+    bpm: int
+    context: str = "browsing"
+
+class EmotionalReactionDB(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    profile_id: str
+    profile_name: str
+    bpm_before: int
+    bpm_peak: int
+    bpm_delta: int
+    intensity: str  # low, medium, high
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class EmotionalReactionCreate(BaseModel):
+    profile_id: str
+    profile_name: str
+    bpm_before: int
+    bpm_peak: int
+    bpm_delta: int
+    intensity: str
+
+class BiometricStats(BaseModel):
+    total_readings: int
+    avg_bpm: float
+    max_bpm: int
+    min_bpm: int
+    total_reactions: int
+    avg_reaction_intensity: float
+    most_reactive_time: Optional[str] = None
+
+class TopReaction(BaseModel):
+    profile_id: str
+    profile_name: str
+    bpm_delta: int
+    intensity: str
+    timestamp: datetime
+    reaction_count: int
+
 class Match(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user1_id: str

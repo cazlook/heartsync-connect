@@ -11,7 +11,7 @@ import EventsPage from "@/pages/EventsPage";
 import MatchesPageRealtime from "@/pages/MatchesPageRealtime";
 import ChatPageRealtime from "@/pages/ChatPageRealtime";
 import NotificationCenterPage from "@/pages/NotificationCenterPage";
-import InsightsPage from "@/pages/InsightsPage";
+import InsightsPageRealtime from "@/pages/InsightsPageRealtime";
 import SettingsPage from "@/pages/SettingsPage";
 import HomePage from "@/pages/HomePage";
 import ProfilePage from "@/pages/ProfilePage";
@@ -60,7 +60,7 @@ const AppRoutes = () => {
         <Route path="/matches" element={<ProtectedRoute><MatchesPageRealtime /></ProtectedRoute>} />
         <Route path="/chat/:matchId" element={<ProtectedRoute><ChatPageRealtime /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationCenterPage /></ProtectedRoute>} />
-        <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
+        <Route path="/insights" element={<ProtectedRoute><InsightsPageRealtime /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />

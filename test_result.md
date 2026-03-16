@@ -432,6 +432,114 @@ backend:
         agent: "testing"
         comment: "✅ TEST PASSED - Mock FCM working correctly: logs push notification calls, integrates with notification creation, ready for production Firebase keys, supports FCM token management"
 
+  - task: "POST /api/biometrics/heartrate - Save heart rate reading"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/models.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Heart rate data collection working correctly: saves readings with BPM values, context (browsing/chatting/event), proper UUID generation, data persistence to MongoDB, timestamp recording"
+
+  - task: "POST /api/biometrics/reaction - Save emotional reaction to profile"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/models.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Emotional reaction data collection working correctly: saves reactions with profile info, BPM before/peak/delta values, intensity levels (low/medium/high), proper data structure, MongoDB storage"
+
+  - task: "GET /api/biometrics/stats - Get overall biometric statistics"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Biometric statistics working correctly: calculates avg/max/min BPM from readings, computes average reaction intensity, finds most reactive time of day, handles empty state gracefully (returns zeros), accurate statistical calculations verified"
+
+  - task: "GET /api/biometrics/top-reactions - Get top profiles that caused strongest reactions"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Top reactions analytics working correctly: aggregates reactions by profile_id, sorts by max BPM delta descending, supports limit parameter (default 10, max 50), includes reaction count and profile names, proper MongoDB aggregation pipeline"
+
+  - task: "GET /api/biometrics/timeline - Get BPM timeline for charts"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - BPM timeline working correctly: retrieves readings within specified days range (default 7, max 30), sorts by timestamp ascending for chart display, includes context and BPM values, proper time-based filtering, formatted for frontend charting"
+
+  - task: "GET /api/biometrics/history - Get reaction history"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Reaction history working correctly: retrieves reactions within specified days range (default 30, max 90), sorts by timestamp descending for recent-first display, includes all reaction details (profile info, BPM data, intensity), proper time-based filtering"
+
+  - task: "GET /api/biometrics/weekly-summary - Get weekly biometric summary"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Weekly summary working correctly: aggregates last 7 days of data, groups readings and reactions by day, calculates daily average BPM, provides total counts, proper daily breakdown structure for dashboard widgets"
+
+  - task: "Biometric system authentication and security"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/dependencies.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Biometric security working correctly: all endpoints require JWT authentication (401/403 without token), users can only access their own biometric data, proper user isolation, unauthorized access properly rejected across all 7 biometric endpoints"
+
+  - task: "Biometric data aggregation and MongoDB pipelines"
+    implemented: true
+    working: true
+    file: "/app/backend/biometrics.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - MongoDB aggregation working correctly: top reactions pipeline groups by profile_id and sorts by max BPM delta, time-based filtering works for timeline and history endpoints, daily aggregation for weekly summary, statistical calculations accurate across all functions"
+
 frontend:
   - task: "AuthContext and AuthProvider"
     implemented: true
@@ -531,13 +639,13 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.2"
-  test_sequence: 3
+  version: "1.3"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Socket.io WebSocket implementation"
+    - "FASE 3 - Dashboard BPM Personali completed"
   stuck_tasks:
     - "Socket.io WebSocket implementation"
   test_all: false
@@ -711,3 +819,57 @@ agent_communication:
       
       🔧 MINOR FIX APPLIED: Added notification trigger to REST message endpoint
       (notify_new_message was missing from POST /api/chat/{match_id}/messages)
+
+  - agent: "testing"
+    message: |
+      🎉 FASE 3 - DASHBOARD BPM PERSONALI BACKEND TESTING COMPLETED - 15/15 BIOMETRIC TESTS PASSED
+
+      ✅ BIOMETRIC DATA COLLECTION FULLY WORKING:
+      • POST /api/biometrics/heartrate: Heart rate reading collection with BPM values and context
+      • POST /api/biometrics/reaction: Emotional reaction data with profile info and intensity levels  
+      • Authentication: All biometric endpoints properly protected with JWT
+      • Data Persistence: Heart rate readings and reactions stored correctly in MongoDB
+      • UUID Generation: Proper unique IDs for all biometric records
+      • Timestamp Recording: Accurate time tracking for all biometric events
+
+      ✅ BIOMETRIC ANALYTICS & STATISTICS WORKING:
+      • GET /api/biometrics/stats: Overall statistics with avg/max/min BPM calculations
+      • Statistical Accuracy: Verified calculations for average reaction intensity and totals
+      • Empty State Handling: Gracefully returns zeros when no data exists
+      • Most Reactive Time: Calculates peak emotional response hours correctly
+
+      ✅ ADVANCED BIOMETRIC ANALYTICS WORKING:
+      • GET /api/biometrics/top-reactions: Top profiles by BPM delta with MongoDB aggregation
+      • Sorting & Limits: Properly sorted by max BPM delta, respects limit parameter (max 50)
+      • GET /api/biometrics/timeline: BPM timeline for charts with time-based filtering
+      • Timeline Sorting: Correctly sorted ascending by timestamp for chart display
+      • GET /api/biometrics/history: Reaction history with descending timestamp sort
+      • Time Range Support: Flexible day ranges (7-90 days) for all timeline endpoints
+
+      ✅ WEEKLY SUMMARY & AGGREGATION WORKING:
+      • GET /api/biometrics/weekly-summary: Daily breakdown with aggregated statistics
+      • Daily Aggregation: Groups readings and reactions by day with average BPM
+      • MongoDB Pipelines: Complex aggregation queries working correctly
+      • Dashboard Ready: Proper data structure for frontend dashboard widgets
+
+      ✅ COMPREHENSIVE TESTING PERFORMED:
+      • Created comprehensive backend_test.py with 15 biometric-specific test scenarios
+      • Tested empty state behavior, data collection, analytics, and aggregation
+      • Verified statistical calculations accuracy with multiple test data points
+      • Tested authentication, authorization, and data isolation
+      • Extensive edge case testing: different day ranges, limit parameters, sorting
+      • Real-world test data: Used realistic Italian names and BPM values
+
+      📊 COMPLETE TEST RESULTS:
+      • All 7 biometric endpoints: ✅ WORKING
+      • Data collection (heartrate + reactions): ✅ WORKING  
+      • Statistical calculations: ✅ WORKING
+      • Analytics & aggregation: ✅ WORKING
+      • Authentication/Authorization: ✅ WORKING
+      • MongoDB aggregation pipelines: ✅ WORKING
+
+      Backend URL: https://bpm-social.preview.emergentagent.com/api
+      Database: MongoDB biometric storage working perfectly
+      REST API Status: Production-ready for all FASE 3 biometric dashboard functionality
+
+      🔥 FASE 3 DASHBOARD BPM PERSONALI BACKEND IS PRODUCTION-READY!
