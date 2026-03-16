@@ -87,8 +87,9 @@
     font-variant-numeric: tabular-nums;
   }
   .font-display {
-    font-family: 'Fraunces', Georgia, serif;
-    letter-spacing: -0.03em;
+    font-family: 'Nunito', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
   .text-gradient-cardiac {
     @apply bg-clip-text text-transparent;
