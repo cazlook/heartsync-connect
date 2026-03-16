@@ -23,14 +23,8 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Import socket server
-from socket_server import sio
-
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create Socket.IO ASGI app
-socket_app = socketio.ASGIApp(sio, app)
+# Create the main FastAPI app
+fastapi_app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -217,9 +211,9 @@ async def send_message_rest(
     }
 
 # Include the router in the main app
-app.include_router(api_router)
+fastapi_app.include_router(api_router)
 
-app.add_middleware(
+fastapi_app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
@@ -234,6 +228,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
+@fastapi_app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# Import socket server and create Socket.IO ASGI app
+from socket_server import sio
+app = socketio.ASGIApp(sio, fastapi_app)
