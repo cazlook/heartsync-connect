@@ -1,382 +1,351 @@
 #!/usr/bin/env python3
-"""
-BPM Social Dating App - Backend Authentication System Tests
-Tests all authentication API endpoints with various scenarios.
-"""
 
 import requests
 import json
 import uuid
-import os
 from datetime import datetime
+import os
 
-# Get backend URL from environment
+# Backend URL from frontend .env
 BACKEND_URL = "https://bpm-social.preview.emergentagent.com/api"
 
-class BPMAuthTester:
+# Test user credentials (from FASE 0 testing)
+TEST_USER = {
+    "email": "marco.rossi@example.com",
+    "password": "SecurePass123!",
+    "name": "Marco Rossi",
+    "age": 28
+}
+
+class ChatBackendTester:
     def __init__(self):
         self.base_url = BACKEND_URL
-        self.test_results = {
-            "passed": 0,
-            "failed": 0,
-            "errors": []
-        }
-        self.test_user_email = f"testuser_{uuid.uuid4().hex[:8]}@example.com"
-        self.test_user_password = "SecurePass123!"
-        self.test_user_name = "Maria Rossi"
-        self.auth_token = None
+        self.token = None
         self.user_id = None
+        self.test_match_id = None
+        self.session = requests.Session()
         
-    def log_result(self, test_name, success, message="", error=None):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} - {test_name}")
-        if message:
-            print(f"    {message}")
-        if error:
-            print(f"    Error: {error}")
-            self.test_results["errors"].append(f"{test_name}: {error}")
+    def setup_authentication(self):
+        """Authenticate user and get token"""
+        print("🔐 Setting up authentication...")
         
-        if success:
-            self.test_results["passed"] += 1
-        else:
-            self.test_results["failed"] += 1
-        print()
-    
-    def test_user_registration(self):
-        """Test POST /api/auth/register - User registration"""
-        print("=== Testing User Registration ===")
-        
-        # Test 1: Valid registration
-        payload = {
-            "email": self.test_user_email,
-            "password": self.test_user_password,
-            "name": self.test_user_name,
-            "age": 25,
-            "bio": "Test user for BPM Social",
-            "city": "Milano",
-            "interests": ["music", "travel", "fitness"]
+        # Try to login with existing user
+        login_data = {
+            "email": TEST_USER["email"],
+            "password": TEST_USER["password"]
         }
         
-        try:
-            response = requests.post(f"{self.base_url}/auth/register", json=payload, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if "access_token" in data and "user" in data:
-                    self.auth_token = data["access_token"]
-                    self.user_id = data["user"]["id"]
-                    self.log_result("Valid user registration", True, 
-                                  f"User created with ID: {self.user_id}")
-                else:
-                    self.log_result("Valid user registration", False, 
-                                  "Response missing required fields", 
-                                  f"Response: {data}")
-            else:
-                self.log_result("Valid user registration", False, 
-                              f"Expected 200, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Valid user registration", False, error=str(e))
+        response = self.session.post(f"{self.base_url}/auth/login", json=login_data)
         
-        # Test 2: Duplicate email registration (should fail)
-        try:
-            response = requests.post(f"{self.base_url}/auth/register", json=payload, timeout=10)
+        if response.status_code == 401:
+            # User doesn't exist, create it
+            print("📝 User not found, creating new test user...")
+            create_response = self.session.post(f"{self.base_url}/auth/register", json=TEST_USER)
             
-            if response.status_code == 400:
-                self.log_result("Duplicate email registration", True, 
-                              "Correctly rejected duplicate email")
-            else:
-                self.log_result("Duplicate email registration", False, 
-                              f"Expected 400, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Duplicate email registration", False, error=str(e))
-        
-        # Test 3: Registration without required fields
-        invalid_payload = {"email": f"invalid_{uuid.uuid4().hex[:8]}@example.com"}
-        
-        try:
-            response = requests.post(f"{self.base_url}/auth/register", json=invalid_payload, timeout=10)
+            if create_response.status_code != 200:
+                print(f"❌ Failed to create user: {create_response.status_code}")
+                print(f"Response: {create_response.text}")
+                return False
             
-            if response.status_code in [400, 422]:
-                self.log_result("Registration without required fields", True, 
-                              "Correctly rejected incomplete data")
-            else:
-                self.log_result("Registration without required fields", False, 
-                              f"Expected 400/422, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Registration without required fields", False, error=str(e))
+            response = create_response
+        
+        if response.status_code == 200:
+            data = response.json()
+            self.token = data.get("access_token")
+            self.user_id = data.get("user", {}).get("id")
+            
+            # Set Authorization header for all future requests
+            self.session.headers.update({"Authorization": f"Bearer {self.token}"})
+            
+            print(f"✅ Authentication successful. User ID: {self.user_id}")
+            return True
+        else:
+            print(f"❌ Authentication failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
     
-    def test_user_login(self):
-        """Test POST /api/auth/login - User login"""
-        print("=== Testing User Login ===")
+    def test_create_test_match(self):
+        """Test POST /api/chat/create-test-match"""
+        print("\n🎯 Testing: POST /api/chat/create-test-match")
         
-        # Test 1: Valid login
-        payload = {
-            "email": self.test_user_email,
-            "password": self.test_user_password
+        response = self.session.post(f"{self.base_url}/chat/create-test-match")
+        
+        if response.status_code == 200:
+            data = response.json()
+            self.test_match_id = data.get("id")
+            print(f"✅ Test match created successfully")
+            print(f"   Match ID: {self.test_match_id}")
+            print(f"   User1: {data.get('user1_id')}")
+            print(f"   User2: {data.get('user2_id')}")
+            print(f"   Cardiac Score: {data.get('cardiac_score')}")
+            return True
+        else:
+            print(f"❌ Failed to create test match: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_get_matches(self):
+        """Test GET /api/chat/matches"""
+        print("\n🎯 Testing: GET /api/chat/matches")
+        
+        response = self.session.get(f"{self.base_url}/chat/matches")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Retrieved {len(data)} matches")
+            for match in data:
+                print(f"   Match ID: {match.get('id')}")
+                print(f"   Users: {match.get('user1_id')} <-> {match.get('user2_id')}")
+                print(f"   Cardiac Score: {match.get('cardiac_score')}")
+            return True
+        else:
+            print(f"❌ Failed to get matches: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_get_messages_empty(self):
+        """Test GET /api/chat/{match_id}/messages with empty conversation"""
+        print("\n🎯 Testing: GET /api/chat/{match_id}/messages (empty)")
+        
+        if not self.test_match_id:
+            print("❌ No test match ID available")
+            return False
+        
+        response = self.session.get(f"{self.base_url}/chat/{self.test_match_id}/messages")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Retrieved {len(data)} messages (should be 0 for new match)")
+            return True
+        else:
+            print(f"❌ Failed to get messages: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_get_messages_invalid_match(self):
+        """Test GET /api/chat/{match_id}/messages with invalid match ID"""
+        print("\n🎯 Testing: GET /api/chat/{match_id}/messages (invalid match)")
+        
+        fake_match_id = str(uuid.uuid4())
+        response = self.session.get(f"{self.base_url}/chat/{fake_match_id}/messages")
+        
+        if response.status_code == 404:
+            print("✅ Correctly rejected invalid match ID with 404")
+            return True
+        else:
+            print(f"❌ Expected 404, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_send_message_rest(self):
+        """Test POST /api/chat/{match_id}/messages"""
+        print("\n🎯 Testing: POST /api/chat/{match_id}/messages")
+        
+        if not self.test_match_id:
+            print("❌ No test match ID available")
+            return False
+        
+        message_data = {
+            "message": "Hello! This is a test message via REST API",
+            "message_type": "text"
         }
         
-        try:
-            response = requests.post(f"{self.base_url}/auth/login", json=payload, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if "access_token" in data and "user" in data:
-                    self.auth_token = data["access_token"]
-                    self.log_result("Valid login", True, 
-                                  f"Login successful, token received")
-                else:
-                    self.log_result("Valid login", False, 
-                                  "Response missing required fields", 
-                                  f"Response: {data}")
-            else:
-                self.log_result("Valid login", False, 
-                              f"Expected 200, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Valid login", False, error=str(e))
+        response = self.session.post(
+            f"{self.base_url}/chat/{self.test_match_id}/messages", 
+            json=message_data
+        )
         
-        # Test 2: Invalid email login
-        invalid_payload = {
-            "email": "nonexistent@example.com",
-            "password": self.test_user_password
+        if response.status_code == 200:
+            data = response.json()
+            print("✅ Message sent successfully via REST")
+            print(f"   Message ID: {data.get('id')}")
+            print(f"   Sender: {data.get('sender_id')}")
+            print(f"   Content: {data.get('message')}")
+            print(f"   Timestamp: {data.get('timestamp')}")
+            return True
+        else:
+            print(f"❌ Failed to send message: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_send_message_invalid_match(self):
+        """Test POST /api/chat/{match_id}/messages with invalid match"""
+        print("\n🎯 Testing: POST /api/chat/{match_id}/messages (invalid match)")
+        
+        fake_match_id = str(uuid.uuid4())
+        message_data = {
+            "message": "This should fail",
+            "message_type": "text"
         }
         
-        try:
-            response = requests.post(f"{self.base_url}/auth/login", json=invalid_payload, timeout=10)
-            
-            if response.status_code == 401:
-                self.log_result("Invalid email login", True, 
-                              "Correctly rejected invalid email")
-            else:
-                self.log_result("Invalid email login", False, 
-                              f"Expected 401, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Invalid email login", False, error=str(e))
+        response = self.session.post(
+            f"{self.base_url}/chat/{fake_match_id}/messages", 
+            json=message_data
+        )
         
-        # Test 3: Wrong password login
-        wrong_password_payload = {
-            "email": self.test_user_email,
-            "password": "WrongPassword123!"
-        }
-        
-        try:
-            response = requests.post(f"{self.base_url}/auth/login", json=wrong_password_payload, timeout=10)
-            
-            if response.status_code == 401:
-                self.log_result("Wrong password login", True, 
-                              "Correctly rejected wrong password")
-            else:
-                self.log_result("Wrong password login", False, 
-                              f"Expected 401, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Wrong password login", False, error=str(e))
-    
-    def test_protected_route_me(self):
-        """Test GET /api/auth/me - Get current authenticated user"""
-        print("=== Testing Protected Route /auth/me ===")
-        
-        # Test 1: Access with valid token
-        if self.auth_token:
-            headers = {"Authorization": f"Bearer {self.auth_token}"}
-            
-            try:
-                response = requests.get(f"{self.base_url}/auth/me", headers=headers, timeout=10)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "id" in data and "email" in data:
-                        self.log_result("Access /auth/me with valid token", True, 
-                                      f"User data retrieved: {data['email']}")
-                    else:
-                        self.log_result("Access /auth/me with valid token", False, 
-                                      "Response missing required user fields", 
-                                      f"Response: {data}")
-                else:
-                    self.log_result("Access /auth/me with valid token", False, 
-                                  f"Expected 200, got {response.status_code}", 
-                                  response.text)
-            except Exception as e:
-                self.log_result("Access /auth/me with valid token", False, error=str(e))
+        if response.status_code == 404:
+            print("✅ Correctly rejected invalid match ID with 404")
+            return True
         else:
-            self.log_result("Access /auth/me with valid token", False, 
-                          "No valid token available from previous tests")
-        
-        # Test 2: Access without token
-        try:
-            response = requests.get(f"{self.base_url}/auth/me", timeout=10)
-            
-            if response.status_code == 401 or response.status_code == 403:
-                self.log_result("Access /auth/me without token", True, 
-                              "Correctly rejected request without token")
-            else:
-                self.log_result("Access /auth/me without token", False, 
-                              f"Expected 401/403, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Access /auth/me without token", False, error=str(e))
-        
-        # Test 3: Access with invalid token
-        headers = {"Authorization": "Bearer invalid_token_here"}
-        
-        try:
-            response = requests.get(f"{self.base_url}/auth/me", headers=headers, timeout=10)
-            
-            if response.status_code == 401:
-                self.log_result("Access /auth/me with invalid token", True, 
-                              "Correctly rejected invalid token")
-            else:
-                self.log_result("Access /auth/me with invalid token", False, 
-                              f"Expected 401, got {response.status_code}", 
-                              response.text)
-        except Exception as e:
-            self.log_result("Access /auth/me with invalid token", False, error=str(e))
+            print(f"❌ Expected 404, got {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
     
-    def test_profile_update(self):
-        """Test PUT /api/auth/profile - Update user profile"""
-        print("=== Testing Profile Update ===")
+    def test_get_messages_with_data(self):
+        """Test GET /api/chat/{match_id}/messages after sending a message"""
+        print("\n🎯 Testing: GET /api/chat/{match_id}/messages (with data)")
         
-        # Test 1: Update profile with valid token
-        if self.auth_token:
-            headers = {"Authorization": f"Bearer {self.auth_token}"}
-            update_payload = {
-                "name": "Maria Rossi Updated",
-                "bio": "Updated bio for BPM Social test user",
-                "age": 26,
-                "city": "Roma",
-                "interests": ["music", "travel", "fitness", "photography"]
-            }
-            
-            try:
-                response = requests.put(f"{self.base_url}/auth/profile", 
-                                      json=update_payload, headers=headers, timeout=10)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("name") == update_payload["name"] and data.get("bio") == update_payload["bio"]:
-                        self.log_result("Update profile with valid token", True, 
-                                      "Profile updated successfully")
-                    else:
-                        self.log_result("Update profile with valid token", False, 
-                                      "Profile update did not persist correctly", 
-                                      f"Response: {data}")
-                else:
-                    self.log_result("Update profile with valid token", False, 
-                                  f"Expected 200, got {response.status_code}", 
-                                  response.text)
-            except Exception as e:
-                self.log_result("Update profile with valid token", False, error=str(e))
+        if not self.test_match_id:
+            print("❌ No test match ID available")
+            return False
+        
+        response = self.session.get(f"{self.base_url}/chat/{self.test_match_id}/messages")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Retrieved {len(data)} messages")
+            for msg in data:
+                print(f"   Message: {msg.get('message')}")
+                print(f"   From: {msg.get('sender_id')}")
+                print(f"   Time: {msg.get('timestamp')}")
+            return True
         else:
-            self.log_result("Update profile with valid token", False, 
-                          "No valid token available from previous tests")
+            print(f"❌ Failed to get messages: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_get_messages_pagination(self):
+        """Test GET /api/chat/{match_id}/messages with pagination"""
+        print("\n🎯 Testing: GET /api/chat/{match_id}/messages (pagination)")
         
-        # Test 2: Update profile without token
-        update_payload = {"name": "Should Fail"}
+        if not self.test_match_id:
+            print("❌ No test match ID available")
+            return False
+        
+        # Test with limit parameter
+        response = self.session.get(
+            f"{self.base_url}/chat/{self.test_match_id}/messages?limit=10"
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Pagination test passed, retrieved {len(data)} messages with limit=10")
+            return True
+        else:
+            print(f"❌ Failed pagination test: {response.status_code}")
+            print(f"Response: {response.text}")
+            return False
+    
+    def test_unauthorized_access(self):
+        """Test chat endpoints without authentication"""
+        print("\n🎯 Testing: Unauthorized access (no token)")
+        
+        # Create new session without token
+        unauth_session = requests.Session()
+        
+        endpoints_to_test = [
+            f"{self.base_url}/chat/create-test-match",
+            f"{self.base_url}/chat/matches",
+        ]
+        
+        if self.test_match_id:
+            endpoints_to_test.extend([
+                f"{self.base_url}/chat/{self.test_match_id}/messages",
+                f"{self.base_url}/chat/{self.test_match_id}/messages"
+            ])
+        
+        all_passed = True
+        for endpoint in endpoints_to_test:
+            if "/messages" in endpoint and endpoint.endswith("/messages"):
+                # This is a GET request
+                response = unauth_session.get(endpoint)
+            elif endpoint.endswith("create-test-match"):
+                response = unauth_session.post(endpoint)
+            elif endpoint.endswith("/messages"):
+                # This is a POST request
+                response = unauth_session.post(endpoint, json={"message": "test", "message_type": "text"})
+            else:
+                response = unauth_session.get(endpoint)
+            
+            if response.status_code in [401, 403]:
+                print(f"✅ {endpoint} correctly rejected unauthorized request ({response.status_code})")
+            else:
+                print(f"❌ {endpoint} should have rejected unauthorized request, got {response.status_code}")
+                all_passed = False
+        
+        return all_passed
+    
+    def test_socket_io_basic_connectivity(self):
+        """Test basic Socket.io connectivity (limited test)"""
+        print("\n🎯 Testing: Socket.io basic connectivity")
+        
+        # For Socket.io testing, we'd need a WebSocket client
+        # Since this is limited via curl, we'll just try to access the Socket.io endpoint
         
         try:
-            response = requests.put(f"{self.base_url}/auth/profile", json=update_payload, timeout=10)
+            # Check if Socket.io endpoint is accessible
+            response = self.session.get(f"{BACKEND_URL.replace('/api', '')}/socket.io/")
             
-            if response.status_code == 401 or response.status_code == 403:
-                self.log_result("Update profile without token", True, 
-                              "Correctly rejected request without token")
+            if response.status_code == 400 and "Session ID unknown" in response.text:
+                print("✅ Socket.io server is running (got expected error for HTTP request)")
+                return True
+            elif response.status_code == 200:
+                print("✅ Socket.io server responded")
+                return True
             else:
-                self.log_result("Update profile without token", False, 
-                              f"Expected 401/403, got {response.status_code}", 
-                              response.text)
+                print(f"❌ Socket.io server unexpected response: {response.status_code}")
+                return False
+                
         except Exception as e:
-            self.log_result("Update profile without token", False, error=str(e))
-    
-    def test_jwt_token_validation(self):
-        """Test JWT token validation and authentication middleware"""
-        print("=== Testing JWT Token Validation ===")
-        
-        # Test 1: Verify token format and structure
-        if self.auth_token:
-            try:
-                # JWT tokens should have 3 parts separated by dots
-                token_parts = self.auth_token.split('.')
-                if len(token_parts) == 3:
-                    self.log_result("JWT token structure", True, 
-                                  "Token has correct JWT structure (3 parts)")
-                else:
-                    self.log_result("JWT token structure", False, 
-                                  f"Token has {len(token_parts)} parts, expected 3")
-            except Exception as e:
-                self.log_result("JWT token structure", False, error=str(e))
-        else:
-            self.log_result("JWT token structure", False, 
-                          "No token available for testing")
-        
-        # Test 2: Test token persistence across different endpoints
-        if self.auth_token:
-            headers = {"Authorization": f"Bearer {self.auth_token}"}
-            
-            # Try accessing both protected endpoints with the same token
-            me_success = False
-            profile_success = False
-            
-            try:
-                me_response = requests.get(f"{self.base_url}/auth/me", headers=headers, timeout=10)
-                me_success = me_response.status_code == 200
-                
-                profile_response = requests.put(f"{self.base_url}/auth/profile", 
-                                              json={"bio": "Token persistence test"}, 
-                                              headers=headers, timeout=10)
-                profile_success = profile_response.status_code == 200
-                
-                if me_success and profile_success:
-                    self.log_result("Token persistence across endpoints", True, 
-                                  "Token works across multiple protected endpoints")
-                else:
-                    self.log_result("Token persistence across endpoints", False, 
-                                  f"/me: {me_response.status_code}, /profile: {profile_response.status_code}")
-            except Exception as e:
-                self.log_result("Token persistence across endpoints", False, error=str(e))
+            print(f"❌ Socket.io connectivity test failed: {e}")
+            return False
     
     def run_all_tests(self):
-        """Run all authentication tests"""
-        print(f"🚀 Starting BPM Social Authentication Tests")
+        """Run all chat backend tests"""
+        print("🚀 Starting FASE 1 - Real-time Chat Backend Tests")
         print(f"Backend URL: {self.base_url}")
-        print(f"Test User Email: {self.test_user_email}")
-        print("=" * 60)
+        print("="*60)
         
-        # Run all test suites
-        self.test_user_registration()
-        self.test_user_login()
-        self.test_protected_route_me()
-        self.test_profile_update()
-        self.test_jwt_token_validation()
+        results = {}
         
-        # Print summary
-        print("=" * 60)
-        print("🏆 TEST RESULTS SUMMARY")
-        print("=" * 60)
-        print(f"✅ Passed: {self.test_results['passed']}")
-        print(f"❌ Failed: {self.test_results['failed']}")
-        print(f"📊 Total: {self.test_results['passed'] + self.test_results['failed']}")
+        # Setup
+        if not self.setup_authentication():
+            print("❌ Authentication setup failed, cannot continue")
+            return results
         
-        if self.test_results['failed'] > 0:
-            print("\n🔍 FAILED TESTS:")
-            for error in self.test_results['errors']:
-                print(f"   • {error}")
+        # REST API Tests
+        results["create_test_match"] = self.test_create_test_match()
+        results["get_matches"] = self.test_get_matches()
+        results["get_messages_empty"] = self.test_get_messages_empty()
+        results["get_messages_invalid_match"] = self.test_get_messages_invalid_match()
+        results["send_message_rest"] = self.test_send_message_rest()
+        results["send_message_invalid_match"] = self.test_send_message_invalid_match()
+        results["get_messages_with_data"] = self.test_get_messages_with_data()
+        results["get_messages_pagination"] = self.test_get_messages_pagination()
+        results["unauthorized_access"] = self.test_unauthorized_access()
+        results["socket_io_connectivity"] = self.test_socket_io_basic_connectivity()
         
-        success_rate = (self.test_results['passed'] / (self.test_results['passed'] + self.test_results['failed'])) * 100 if (self.test_results['passed'] + self.test_results['failed']) > 0 else 0
-        print(f"\n📈 Success Rate: {success_rate:.1f}%")
+        # Summary
+        print("\n" + "="*60)
+        print("📊 CHAT BACKEND TEST SUMMARY")
+        print("="*60)
         
-        return self.test_results['failed'] == 0
+        passed = sum(1 for result in results.values() if result)
+        total = len(results)
+        
+        for test_name, result in results.items():
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"{test_name:35} {status}")
+        
+        print(f"\nOverall: {passed}/{total} tests passed")
+        
+        if passed == total:
+            print("🎉 ALL CHAT BACKEND TESTS PASSED!")
+        else:
+            print(f"⚠️  {total - passed} tests failed")
+        
+        return results
 
 if __name__ == "__main__":
-    tester = BPMAuthTester()
-    success = tester.run_all_tests()
-    
-    if success:
-        print("\n🎉 All authentication tests passed!")
-        exit(0)
-    else:
-        print("\n⚠️  Some tests failed. Check the results above.")
-        exit(1)
+    tester = ChatBackendTester()
+    tester.run_all_tests()

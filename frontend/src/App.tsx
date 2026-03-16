@@ -3,11 +3,12 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { SocketProvider } from "@/contexts/SocketContext";
 import BottomNav from "@/components/BottomNav";
 import DiscoveryPage from "@/pages/DiscoveryPage";
 import EventsPage from "@/pages/EventsPage";
-import MatchesPage from "@/pages/MatchesPage";
-import ChatPage from "@/pages/ChatPage";
+import MatchesPageRealtime from "@/pages/MatchesPageRealtime";
+import ChatPageRealtime from "@/pages/ChatPageRealtime";
 import InsightsPage from "@/pages/InsightsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import HomePage from "@/pages/HomePage";
@@ -54,8 +55,8 @@ const AppRoutes = () => {
         <Route path="/" element={<ProtectedRoute><DiscoveryPage /></ProtectedRoute>} />
         <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
-        <Route path="/matches" element={<ProtectedRoute><MatchesPage /></ProtectedRoute>} />
-        <Route path="/chat/:matchId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+        <Route path="/matches" element={<ProtectedRoute><MatchesPageRealtime /></ProtectedRoute>} />
+        <Route path="/chat/:matchId" element={<ProtectedRoute><ChatPageRealtime /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
@@ -71,9 +72,11 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <SocketProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </SocketProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

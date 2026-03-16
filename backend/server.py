@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, status
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,12 +6,13 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime
-from models import UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate
+from models import UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, Match, ChatMessage, ChatMessageCreate
 from auth import register_user, login_user
 from dependencies import get_current_user_dependency, get_db
+import socketio
 
 
 ROOT_DIR = Path(__file__).parent
@@ -22,8 +23,14 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Import socket server
+from socket_server import sio
+
 # Create the main app without a prefix
 app = FastAPI()
+
+# Create Socket.IO ASGI app
+socket_app = socketio.ASGIApp(sio, app)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -94,6 +101,120 @@ async def update_profile(
     # Return updated user
     updated_user = await database.users.find_one({"id": current_user.id})
     return UserResponse(**updated_user)
+
+# ===== CHAT & MATCHES ROUTES =====
+@api_router.post("/chat/create-test-match")
+async def create_test_match(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Create a test match for development"""
+    # Create a test match with current user
+    match_doc = {
+        "id": str(uuid.uuid4()),
+        "user1_id": current_user.id,
+        "user2_id": "test-user-2",
+        "cardiac_score": 85,
+        "matched_at": datetime.utcnow()
+    }
+    
+    await database.matches.insert_one(match_doc)
+    return Match(**match_doc)
+
+@api_router.get("/chat/matches", response_model=List[Match])
+async def get_user_matches(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get all matches for current user"""
+    matches = await database.matches.find({
+        "$or": [
+            {"user1_id": current_user.id},
+            {"user2_id": current_user.id}
+        ]
+    }).to_list(1000)
+    return [Match(**match) for match in matches]
+
+@api_router.get("/chat/{match_id}/messages")
+async def get_match_messages(
+    match_id: str,
+    limit: int = Query(default=50, le=200),
+    before: Optional[str] = None,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get messages for a specific match"""
+    # Verify user is part of the match
+    match = await database.matches.find_one({"id": match_id})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if current_user.id not in [match["user1_id"], match["user2_id"]]:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    
+    # Build query
+    query = {"match_id": match_id}
+    if before:
+        query["timestamp"] = {"$lt": datetime.fromisoformat(before)}
+    
+    # Get messages
+    messages = await database.messages.find(query).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    # Convert to response format
+    result = []
+    for msg in messages:
+        result.append({
+            "id": msg["id"],
+            "match_id": msg["match_id"],
+            "sender_id": msg["sender_id"],
+            "message": msg["message"],
+            "message_type": msg.get("message_type", "text"),
+            "timestamp": msg["timestamp"].isoformat(),
+            "read": msg.get("read", False),
+            "reactions": msg.get("reactions", [])
+        })
+    
+    return result
+
+@api_router.post("/chat/{match_id}/messages")
+async def send_message_rest(
+    match_id: str,
+    message: ChatMessageCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Send message via REST (backup for WebSocket)"""
+    # Verify user is part of the match
+    match = await database.matches.find_one({"id": match_id})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if current_user.id not in [match["user1_id"], match["user2_id"]]:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    
+    # Create message
+    message_doc = {
+        "id": str(uuid.uuid4()),
+        "match_id": match_id,
+        "sender_id": current_user.id,
+        "message": message.message,
+        "message_type": message.message_type,
+        "timestamp": datetime.utcnow(),
+        "read": False,
+        "reactions": []
+    }
+    
+    await database.messages.insert_one(message_doc)
+    
+    return {
+        "id": message_doc["id"],
+        "match_id": match_id,
+        "sender_id": current_user.id,
+        "message": message.message,
+        "message_type": message.message_type,
+        "timestamp": message_doc["timestamp"].isoformat(),
+        "read": False
+    }
 
 # Include the router in the main app
 app.include_router(api_router)
