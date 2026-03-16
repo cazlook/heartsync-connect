@@ -1,18 +1,31 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Shield, Watch, Database, Download, Trash2, Eye, EyeOff, ChevronRight } from "lucide-react";
+import { Shield, Watch, Database, Download, Trash2, Eye, EyeOff, ChevronRight, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
+  const { user, logout } = useAuth();
   const [biometricsEnabled, setBiometricsEnabled] = useState(true);
   const [showReactions, setShowReactions] = useState(true);
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Disconnesso con successo');
+  };
 
   return (
     <div className="min-h-screen pb-20">
       <div className="px-4 pt-4 pb-2">
         <h1 className="font-display text-xl">Impostazioni</h1>
+        {user && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {user.name} · {user.email}
+          </p>
+        )}
       </div>
 
-      <div className="px-4 space-y-4">
+      <div className="px-4 space-y-4">{/* Smartwatch */}
         {/* Smartwatch */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -89,6 +102,19 @@ export default function SettingsPage() {
               <ChevronRight size={14} className="group-hover:text-destructive transition-colors" />
             </button>
           </div>
+        </motion.div>
+
+        {/* Account */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.20 }} className="glass-panel p-4">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center justify-between w-full py-2.5 text-sm text-destructive group"
+          >
+            <span className="flex items-center gap-2">
+              <LogOut size={14} /> Disconnetti
+            </span>
+            <ChevronRight size={14} className="group-hover:text-destructive transition-colors" />
+          </button>
         </motion.div>
 
         {/* Legal */}
