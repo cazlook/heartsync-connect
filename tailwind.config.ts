@@ -12,9 +12,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Fraunces", "Georgia", "serif"],
+        display: ["Nunito", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "monospace"],
-        sans: ["Geist", "system-ui", "sans-serif"],
+        sans: ["Nunito", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

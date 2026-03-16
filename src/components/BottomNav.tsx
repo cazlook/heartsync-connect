@@ -1,13 +1,13 @@
-import { Heart, Users, CalendarDays, MessageCircle, BarChart3, Settings } from "lucide-react";
+import { Heart, Users, CalendarDays, BarChart3, Home, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
 const tabs = [
+  { path: "/home", icon: Home, label: "Home" },
   { path: "/", icon: Heart, label: "Scopri" },
   { path: "/events", icon: CalendarDays, label: "Eventi" },
   { path: "/matches", icon: Users, label: "Match" },
-  { path: "/insights", icon: BarChart3, label: "Insights" },
-  { path: "/settings", icon: Settings, label: "Altro" },
+  { path: "/profile", icon: User, label: "Profilo" },
 ];
 
 export default function BottomNav() {
