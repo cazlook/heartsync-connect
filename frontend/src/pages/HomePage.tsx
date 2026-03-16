@@ -1,10 +1,13 @@
 import { motion } from "framer-motion";
-import { Heart, Watch, Search, Zap, Users, Shield, ChevronRight } from "lucide-react";
+import { Heart, Watch, Search, Zap, Users, Shield, ChevronRight, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { mockMatches } from "@/lib/mock-data";
+import { useNotifications } from "@/contexts/NotificationContext";
+import NotificationBadge from "@/components/NotificationBadge";
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { unreadCount } = useNotifications();
   const activeMatches = mockMatches.length;
 
   const steps = [
@@ -17,6 +20,18 @@ export default function HomePage() {
   return (
     <div className="min-h-screen pb-24">
       <div className="px-4 pt-6 pb-4">
+        {/* Header with notifications */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="font-display text-2xl">BPM Social</h1>
+          <button 
+            onClick={() => navigate('/notifications')}
+            className="relative p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          >
+            <Bell size={20} className="text-muted-foreground" />
+            <NotificationBadge count={unreadCount} />
+          </button>
+        </div>
+        
         {/* Stats cards */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <motion.div

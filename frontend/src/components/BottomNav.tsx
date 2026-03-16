@@ -1,23 +1,26 @@
 import { Heart, Users, CalendarDays, BarChart3, Home, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useNotifications } from "@/contexts/NotificationContext";
+import NotificationBadge from "./NotificationBadge";
 
 const tabs = [
   { path: "/home", icon: Home, label: "Home" },
   { path: "/", icon: Heart, label: "Scopri" },
   { path: "/events", icon: CalendarDays, label: "Eventi" },
-  { path: "/matches", icon: Users, label: "Match" },
+  { path: "/matches", icon: Users, label: "Match", showBadge: true },
   { path: "/profile", icon: User, label: "Profilo" },
 ];
 
 export default function BottomNav() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { unreadCount } = useNotifications();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-panel rounded-none border-t border-border/50 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
-        {tabs.map(({ path, icon: Icon, label }) => {
+        {tabs.map(({ path, icon: Icon, label, showBadge }) => {
           const active = pathname === path || (path !== "/" && pathname.startsWith(path));
           return (
             <button
@@ -32,10 +35,13 @@ export default function BottomNav() {
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 />
               )}
-              <Icon
-                size={20}
-                className={active ? "text-primary" : "text-muted-foreground"}
-              />
+              <div className="relative">
+                <Icon
+                  size={20}
+                  className={active ? "text-primary" : "text-muted-foreground"}
+                />
+                {showBadge && <NotificationBadge count={unreadCount} />}
+              </div>
               <span className={`text-[10px] ${active ? "text-primary font-medium" : "text-muted-foreground"}`}>
                 {label}
               </span>

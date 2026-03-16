@@ -136,6 +136,27 @@ async def send_message(sid, data):
         # Save to database
         await db.messages.insert_one(message_doc)
         
+        # Get match to find other user and send notification
+        match = await db.matches.find_one({'id': match_id})
+        if match:
+            other_user_id = match['user2_id'] if match['user1_id'] == user_id else match['user1_id']
+            # Get sender name
+            sender = await db.users.find_one({'id': user_id})
+            sender_name = sender.get('name', 'Qualcuno') if sender else 'Qualcuno'
+            
+            # Create notification for other user
+            from notifications import notify_new_message
+            try:
+                await notify_new_message(db, other_user_id, sender_name, match_id)
+                # Emit notification event via socket
+                if other_user_id in active_connections:
+                    await sio.emit('new_notification', {
+                        'type': 'new_message',
+                        'message': f'Messaggio da {sender_name}'
+                    }, room=active_connections[other_user_id])
+            except Exception as e:
+                print(f"Error sending notification: {e}")
+        
         # Emit to all users in the match room
         await sio.emit('new_message', {
             'id': message_doc['id'],

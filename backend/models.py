@@ -69,3 +69,35 @@ class ChatMessage(BaseModel):
 class ChatMessageCreate(BaseModel):
     message: str
     message_type: str = "text"
+
+# Notification Models
+class NotificationType:
+    NEW_MATCH = "new_match"
+    NEW_MESSAGE = "new_message"
+    NEW_EVENT = "new_event"
+    MATCH_LIKED_YOU = "match_liked_you"
+    EVENT_REMINDER = "event_reminder"
+
+class Notification(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    notification_type: str
+    title: str
+    message: str
+    read: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    data: dict = {}  # Extra data like match_id, message_id, event_id
+    
+class NotificationCreate(BaseModel):
+    user_id: str
+    notification_type: str
+    title: str
+    message: str
+    data: dict = {}
+
+class FCMToken(BaseModel):
+    user_id: str
+    token: str
+    device_type: str = "web"  # web, ios, android
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+

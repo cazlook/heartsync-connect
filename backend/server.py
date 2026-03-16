@@ -9,9 +9,13 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime
-from models import UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, Match, ChatMessage, ChatMessageCreate
+from models import UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, Match, ChatMessage, ChatMessageCreate, Notification, FCMToken
 from auth import register_user, login_user
 from dependencies import get_current_user_dependency, get_db
+from notifications import (
+    get_unread_count, mark_as_read, mark_all_as_read,
+    notify_new_match, notify_new_message
+)
 import socketio
 
 
@@ -200,6 +204,13 @@ async def send_message_rest(
     
     await database.messages.insert_one(message_doc)
     
+    # Send notification to other user
+    other_user_id = match["user2_id"] if match["user1_id"] == current_user.id else match["user1_id"]
+    try:
+        await notify_new_message(database, other_user_id, current_user.name, match_id)
+    except Exception as e:
+        print(f"Error sending notification: {e}")
+    
     return {
         "id": message_doc["id"],
         "match_id": match_id,
@@ -209,6 +220,89 @@ async def send_message_rest(
         "timestamp": message_doc["timestamp"].isoformat(),
         "read": False
     }
+
+# ===== NOTIFICATIONS ROUTES =====
+@api_router.get("/notifications")
+async def get_notifications(
+    limit: int = Query(default=50, le=200),
+    skip: int = Query(default=0),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get user notifications with pagination"""
+    notifications = await database.notifications.find({
+        "user_id": current_user.id
+    }).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    return [Notification(**notif) for notif in notifications]
+
+@api_router.get("/notifications/unread-count")
+async def get_notifications_unread_count(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get count of unread notifications"""
+    count = await get_unread_count(database, current_user.id)
+    return {"count": count}
+
+@api_router.put("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Mark a notification as read"""
+    success = await mark_as_read(database, notification_id, current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"success": True}
+
+@api_router.put("/notifications/read-all")
+async def mark_all_notifications_read(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Mark all notifications as read"""
+    count = await mark_all_as_read(database, current_user.id)
+    return {"marked_read": count}
+
+@api_router.delete("/notifications/{notification_id}")
+async def delete_notification(
+    notification_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Delete a notification"""
+    result = await database.notifications.delete_one({
+        "id": notification_id,
+        "user_id": current_user.id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"success": True}
+
+@api_router.post("/notifications/register-token")
+async def register_fcm_token(
+    token_data: FCMToken,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Register FCM token for push notifications"""
+    # Update or insert token
+    await database.fcm_tokens.update_one(
+        {"user_id": current_user.id},
+        {"$set": {
+            "user_id": current_user.id,
+            "token": token_data.token,
+            "device_type": token_data.device_type,
+            "created_at": datetime.utcnow()
+        }},
+        upsert=True
+    )
+    
+    return {"success": True}
 
 # Include the router in the main app
 fastapi_app.include_router(api_router)

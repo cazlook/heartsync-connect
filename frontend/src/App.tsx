@@ -4,11 +4,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { SocketProvider } from "@/contexts/SocketContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import BottomNav from "@/components/BottomNav";
 import DiscoveryPage from "@/pages/DiscoveryPage";
 import EventsPage from "@/pages/EventsPage";
 import MatchesPageRealtime from "@/pages/MatchesPageRealtime";
 import ChatPageRealtime from "@/pages/ChatPageRealtime";
+import NotificationCenterPage from "@/pages/NotificationCenterPage";
 import InsightsPage from "@/pages/InsightsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import HomePage from "@/pages/HomePage";
@@ -57,6 +59,7 @@ const AppRoutes = () => {
         <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
         <Route path="/matches" element={<ProtectedRoute><MatchesPageRealtime /></ProtectedRoute>} />
         <Route path="/chat/:matchId" element={<ProtectedRoute><ChatPageRealtime /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><NotificationCenterPage /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><InsightsPage /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
@@ -73,9 +76,11 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <SocketProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <NotificationProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </NotificationProvider>
         </SocketProvider>
       </AuthProvider>
     </TooltipProvider>

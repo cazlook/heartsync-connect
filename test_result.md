@@ -294,6 +294,144 @@ backend:
         agent: "testing"
         comment: "✅ TEST PASSED - Message persistence working correctly: messages stored with UUIDs, proper timestamp ordering, support for multiple message types (text/gif/voice), reactions array structure ready"
 
+  - task: "GET /api/notifications - Get user notifications"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/notifications.py, /app/backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented notification retrieval endpoint with pagination support (limit/skip parameters), sorted by created_at descending"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Notification retrieval working correctly: supports pagination (limit/skip), proper authentication required, returns only user's notifications, sorted by created_at descending, handles empty state gracefully"
+
+  - task: "GET /api/notifications/unread-count - Get unread count"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented unread notification count endpoint for badge/indicator support"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Unread count working correctly: returns accurate count of unread notifications for authenticated user, handles empty state (returns 0), proper JSON response format"
+
+  - task: "PUT /api/notifications/{notification_id}/read - Mark as read"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented individual notification marking as read with authorization checks"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Mark notification as read working correctly: successfully updates read status for valid notifications, returns 404 for non-existent notifications, authorization checks prevent cross-user access, proper success response"
+
+  - task: "PUT /api/notifications/read-all - Mark all as read"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented bulk mark all notifications as read for user convenience"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Mark all notifications as read working correctly: updates all unread notifications for user, returns count of marked notifications, proper authentication required, handles empty state gracefully"
+
+  - task: "DELETE /api/notifications/{notification_id} - Delete notification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented notification deletion with proper authorization checks"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Notification deletion working correctly: successfully deletes user's notifications, returns 404 for non-existent notifications, authorization prevents cross-user deletion, proper success response"
+
+  - task: "POST /api/notifications/register-token - FCM token registration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/models.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented FCM token registration for push notifications with upsert functionality"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - FCM token registration working correctly: registers new tokens, updates existing tokens (upsert), supports device_type field, proper authentication required, ready for push notification integration"
+
+  - task: "Notification system automatic triggers"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/socket_server.py, /app/backend/notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented notification triggers for new messages in both REST and Socket.io endpoints"
+      - working: false
+        agent: "testing"
+        comment: "❌ INITIAL ISSUE - REST message endpoint missing notification trigger"
+      - working: true
+        agent: "testing"
+        comment: "✅ FIXED & TESTED - Minor fix applied: Added notify_new_message call to REST endpoint. Notification triggers now working correctly: REST message sending creates notifications for recipients, Socket.io integration working, cross-user notifications verified with dual-user testing, proper Italian messages with sender names"
+
+  - task: "Notification system authentication and security"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented JWT authentication and user isolation for all notification endpoints"
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Notification security working correctly: all endpoints require JWT authentication (401/403 without token), users can only access their own notifications, proper authorization checks prevent cross-user access, invalid notification IDs return 404"
+
+  - task: "MockFirebaseMessaging for push notifications"
+    implemented: true
+    working: true
+    file: "/app/backend/notifications.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "unknown"
+        agent: "main"
+        comment: "Implemented mock FCM for development without real Firebase keys"
+      - working: true
+        agent: "testing"
+        comment: "✅ TEST PASSED - Mock FCM working correctly: logs push notification calls, integrates with notification creation, ready for production Firebase keys, supports FCM token management"
+
 frontend:
   - task: "AuthContext and AuthProvider"
     implemented: true
@@ -393,8 +531,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.1"
-  test_sequence: 2
+  version: "1.2"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -510,3 +648,66 @@ agent_communication:
       Database: MongoDB working, matches and messages storing correctly
       REST API Status: Production-ready for all chat functionality
       WebSocket Status: Code ready, deployment configuration needed
+
+  - agent: "main"
+    message: |
+      FASE 2 - Sistema Notifiche Backend Implementation
+      
+      Backend Implementation:
+      - Extended models.py with Notification, NotificationCreate, FCMToken models
+      - Created notifications.py with comprehensive notification system
+      - Added 6 new notification REST endpoints to server.py
+      - Implemented MockFirebaseMessaging for development (no real Firebase keys needed)
+      - Added notification triggers in both REST and Socket.io message endpoints
+      - Integrated FCM token management and push notification system
+      - Added notification types: NEW_MATCH, NEW_MESSAGE, NEW_EVENT, MATCH_LIKED_YOU, EVENT_REMINDER
+      
+      Testing Instructions:
+      Test all notification REST endpoints including authentication, CRUD operations, and automatic triggers
+
+  - agent: "testing"
+    message: |
+      🎉 FASE 2 - SISTEMA NOTIFICHE BACKEND TESTING COMPLETED - 11/11 NOTIFICATION TESTS PASSED
+      
+      ✅ NOTIFICATION SYSTEM FULLY WORKING:
+      • GET /api/notifications: Notification retrieval with pagination (limit/skip)
+      • GET /api/notifications/unread-count: Unread count tracking working correctly
+      • PUT /api/notifications/{id}/read: Mark individual notifications as read
+      • PUT /api/notifications/read-all: Mark all notifications as read (returns count)
+      • DELETE /api/notifications/{id}: Delete individual notifications
+      • POST /api/notifications/register-token: FCM token registration with upsert
+      • Authentication: All notification endpoints properly protected with JWT
+      • Authorization: Users can only access their own notifications (proper isolation)
+      • Error Handling: Proper 404 responses for invalid/unauthorized access
+      • Data Persistence: Notifications stored correctly in MongoDB with proper indexing
+      • Pagination: Supports limit/skip parameters, sorted by created_at descending
+      
+      ✅ NOTIFICATION TRIGGERS WORKING:
+      • Message Sending Triggers: REST API message sending creates notifications for recipients
+      • Cross-User Notifications: Verified with dual-user testing (Marco → Giulia, Giulia → Marco)
+      • Socket.io Integration: notify_new_message properly integrated in socket_server.py
+      • FCM Push Integration: Mock FCM working (ready for real Firebase keys in production)
+      • Notification Content: Proper Italian messages, sender names, match IDs in data
+      
+      ✅ COMPREHENSIVE TESTING PERFORMED:
+      • Created backend_test.py with 11 notification-specific test scenarios
+      • Created cross_user_notification_test.py for real user interaction testing
+      • Tested all CRUD operations, authentication, authorization, pagination
+      • Verified notification triggers via REST message sending
+      • Tested FCM token registration and updates (upsert functionality)
+      • Extensive error handling: invalid IDs, unauthorized access, missing tokens
+      
+      📊 COMPLETE TEST RESULTS:
+      • All 11 notification endpoints: ✅ WORKING
+      • Cross-user notification triggers: ✅ WORKING
+      • FCM token management: ✅ WORKING
+      • Authentication/Authorization: ✅ WORKING
+      • Data persistence and retrieval: ✅ WORKING
+      
+      Backend URL: https://bpm-social.preview.emergentagent.com/api
+      Database: MongoDB notification storage working perfectly
+      Mock FCM: Ready for production Firebase keys
+      REST API Status: Production-ready for all notification functionality
+      
+      🔧 MINOR FIX APPLIED: Added notification trigger to REST message endpoint
+      (notify_new_message was missing from POST /api/chat/{match_id}/messages)
