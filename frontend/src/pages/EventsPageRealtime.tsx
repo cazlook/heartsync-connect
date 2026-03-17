@@ -126,7 +126,7 @@ export default function EventsPageRealtime() {
       await axios.post(
         `${BACKEND_URL}/api/events`,
         {
-          title: 'Aperitivo BPM Social',
+          title: 'Aperitivo SyncLove',
           description: 'Incontro informale per conoscersi di persona',
           latitude: userLocation ? userLocation.lat + (Math.random() - 0.5) * 0.1 : 45.4642,
           longitude: userLocation ? userLocation.lon + (Math.random() - 0.5) * 0.1 : 9.1900,

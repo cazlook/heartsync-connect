@@ -56,7 +56,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
           <Heart className="text-primary" size={32} fill="currentColor" />
         </div>
-        <h1 className="font-display text-3xl mb-2">Unisciti a BPM Social</h1>
+        <h1 className="font-display text-3xl mb-2">Unisciti a SyncLove</h1>
         <p className="text-muted-foreground text-sm">Crea il tuo account e inizia a connetterti</p>
       </div>
 

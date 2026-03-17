@@ -42,7 +42,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           <Heart className="text-primary" size={32} fill="currentColor" />
         </div>
         <h1 className="font-display text-3xl mb-2">Bentornato</h1>
-        <p className="text-muted-foreground text-sm">Accedi al tuo account BPM Social</p>
+        <p className="text-muted-foreground text-sm">Accedi al tuo account SyncLove</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

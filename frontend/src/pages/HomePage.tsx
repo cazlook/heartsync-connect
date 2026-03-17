@@ -22,7 +22,7 @@ export default function HomePage() {
       <div className="px-4 pt-6 pb-4">
         {/* Header with notifications */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="font-display text-2xl">BPM Social</h1>
+          <h1 className="font-display text-2xl">SyncLove</h1>
           <button 
             onClick={() => navigate('/notifications')}
             className="relative p-2 hover:bg-muted/50 rounded-lg transition-colors"
