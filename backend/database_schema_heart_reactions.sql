@@ -99,3 +99,29 @@ COMMENT ON TABLE heart_reactions IS 'Stores heart rate reactions for wearable-ba
 COMMENT ON TABLE biometric_consents IS 'Tracks user consent for biometric data processing (GDPR Art. 9). Required for HR matching feature.';
 COMMENT ON COLUMN heart_reactions.encrypted_hr_data IS 'AES-256 encrypted raw HR samples for audit trail. Encrypted at rest.';
 COMMENT ON COLUMN heart_reactions.data_retention_expires IS 'Auto-deletion timestamp per GDPR right to erasure. Calculated from user consent retention policy.';
+
+-- Tabella connessioni wearable (credentials storage)
+CREATE TABLE IF NOT EXISTS wearable_connections (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    
+    -- Platform info
+    platform VARCHAR(50) NOT NULL CHECK (platform IN ('apple_healthkit', 'google_fit', 'fitbit', 'garmin')),
+    
+    -- Credentials (ENCRYPTED in production with KMS)
+    credentials_encrypted TEXT NOT NULL,  -- OAuth tokens, API keys (AES-256)
+    
+    -- Connection status
+    is_active BOOLEAN DEFAULT TRUE,
+    connected_at TIMESTAMP DEFAULT NOW(),
+    last_sync_at TIMESTAMP,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    CONSTRAINT unique_user_platform UNIQUE(user_id, platform)
+);
+
+COMMENT ON TABLE wearable_connections IS 'Stores encrypted wearable device credentials for HR data fetching.';
+COMMENT ON COLUMN wearable_connections.credentials_encrypted IS 'OAuth tokens/API keys encrypted with AES-256. Never store plaintext!';
