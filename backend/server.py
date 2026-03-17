@@ -13,7 +13,9 @@ from models import (
     UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, 
     Match, ChatMessage, ChatMessageCreate, Notification, FCMToken,
     HeartRateReading, HeartRateReadingCreate, EmotionalReactionDB, EmotionalReactionCreate,
-    BiometricStats, TopReaction
+    BiometricStats, TopReaction,
+    Event, EventCreate, EventResponse, Location, UserLocationUpdate,
+    Story, StoryCreate, Badge, ReferralCode, ReferralRedemption
 )
 from auth import register_user, login_user
 from dependencies import get_current_user_dependency, get_db
@@ -24,6 +26,10 @@ from notifications import (
 from biometrics import (
     calculate_stats, get_top_reactions, get_bpm_timeline,
     get_reactions_history, get_weekly_summary
+)
+from geolocation import calculate_distance, filter_by_distance
+from gamification import (
+    check_and_award_badges, create_referral_code, redeem_referral_code
 )
 import socketio
 
@@ -401,6 +407,570 @@ async def get_biometric_weekly_summary(
     """Get weekly summary of biometric data"""
     summary = await get_weekly_summary(database, current_user.id)
     return summary
+
+# ===== LOCATION & EVENTS ROUTES =====
+@api_router.put("/users/location")
+async def update_user_location(
+    location: UserLocationUpdate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Update user location"""
+    await database.users.update_one(
+        {"id": current_user.id},
+        {"$set": {
+            "location": {
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "city": location.city,
+                "country": location.country
+            },
+            "last_location_update": datetime.utcnow()
+        }}
+    )
+    return {"success": True}
+
+@api_router.post("/events", response_model=EventResponse)
+async def create_event(
+    event_data: EventCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Create a new event"""
+    event_doc = {
+        "id": str(uuid.uuid4()),
+        "title": event_data.title,
+        "description": event_data.description,
+        "location": {
+            "latitude": event_data.latitude,
+            "longitude": event_data.longitude,
+            "city": event_data.city,
+            "country": None
+        },
+        "address": event_data.address,
+        "start_time": event_data.start_time,
+        "end_time": event_data.end_time,
+        "created_by": current_user.id,
+        "attendees": [],
+        "max_attendees": event_data.max_attendees,
+        "image_url": event_data.image_url,
+        "created_at": datetime.utcnow()
+    }
+    
+    await database.events.insert_one(event_doc)
+    
+    return EventResponse(
+        id=event_doc["id"],
+        title=event_doc["title"],
+        description=event_doc["description"],
+        location=Location(**event_doc["location"]),
+        address=event_doc["address"],
+        start_time=event_doc["start_time"],
+        end_time=event_doc["end_time"],
+        created_by=event_doc["created_by"],
+        attendees_count=0,
+        max_attendees=event_doc["max_attendees"],
+        image_url=event_doc["image_url"],
+        is_attending=False
+    )
+
+@api_router.get("/events")
+async def get_events(
+    max_distance_km: Optional[float] = Query(default=None),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get all events, optionally filtered by distance"""
+    # Get current user location
+    user = await database.users.find_one({"id": current_user.id})
+    user_location = user.get("location") if user else None
+    
+    # Get all events
+    events = await database.events.find().to_list(1000)
+    
+    # Filter by distance if user has location
+    if user_location and user_location.get("latitude") and user_location.get("longitude"):
+        events = filter_by_distance(
+            events,
+            user_location["latitude"],
+            user_location["longitude"],
+            max_distance_km
+        )
+    
+    # Convert to response format
+    results = []
+    for event in events:
+        is_attending = current_user.id in event.get("attendees", [])
+        results.append(EventResponse(
+            id=event["id"],
+            title=event["title"],
+            description=event["description"],
+            location=Location(**event["location"]),
+            address=event["address"],
+            start_time=event["start_time"],
+            end_time=event["end_time"],
+            created_by=event["created_by"],
+            attendees_count=len(event.get("attendees", [])),
+            max_attendees=event.get("max_attendees"),
+            image_url=event.get("image_url"),
+            distance_km=event.get("distance_km"),
+            is_attending=is_attending
+        ))
+    
+    return results
+
+@api_router.get("/events/nearby")
+async def get_nearby_events(
+    max_distance_km: float = Query(default=10.0),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get events nearby user's current location"""
+    # Get current user location
+    user = await database.users.find_one({"id": current_user.id})
+    user_location = user.get("location") if user else None
+    
+    if not user_location or not user_location.get("latitude"):
+        return []
+    
+    # Get all events
+    events = await database.events.find().to_list(1000)
+    
+    # Filter by distance
+    nearby_events = filter_by_distance(
+        events,
+        user_location["latitude"],
+        user_location["longitude"],
+        max_distance_km
+    )
+    
+    # Convert to response format
+    results = []
+    for event in nearby_events:
+        is_attending = current_user.id in event.get("attendees", [])
+        results.append(EventResponse(
+            id=event["id"],
+            title=event["title"],
+            description=event["description"],
+            location=Location(**event["location"]),
+            address=event["address"],
+            start_time=event["start_time"],
+            end_time=event["end_time"],
+            created_by=event["created_by"],
+            attendees_count=len(event.get("attendees", [])),
+            max_attendees=event.get("max_attendees"),
+            image_url=event.get("image_url"),
+            distance_km=event.get("distance_km"),
+            is_attending=is_attending
+        ))
+    
+    return results
+
+@api_router.get("/events/{event_id}")
+async def get_event_detail(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get event details"""
+    event = await database.events.find_one({"id": event_id})
+    
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Calculate distance if user has location
+    user = await database.users.find_one({"id": current_user.id})
+    user_location = user.get("location") if user else None
+    distance_km = None
+    
+    if user_location and user_location.get("latitude"):
+        distance_km = calculate_distance(
+            user_location["latitude"],
+            user_location["longitude"],
+            event["location"]["latitude"],
+            event["location"]["longitude"]
+        )
+    
+    is_attending = current_user.id in event.get("attendees", [])
+    
+    return EventResponse(
+        id=event["id"],
+        title=event["title"],
+        description=event["description"],
+        location=Location(**event["location"]),
+        address=event["address"],
+        start_time=event["start_time"],
+        end_time=event["end_time"],
+        created_by=event["created_by"],
+        attendees_count=len(event.get("attendees", [])),
+        max_attendees=event.get("max_attendees"),
+        image_url=event.get("image_url"),
+        distance_km=distance_km,
+        is_attending=is_attending
+    )
+
+@api_router.post("/events/{event_id}/attend")
+async def attend_event(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Attend an event"""
+    event = await database.events.find_one({"id": event_id})
+    
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    attendees = event.get("attendees", [])
+    
+    # Check if already attending
+    if current_user.id in attendees:
+        return {"success": True, "message": "Already attending"}
+    
+    # Check max attendees
+    if event.get("max_attendees") and len(attendees) >= event["max_attendees"]:
+        raise HTTPException(status_code=400, detail="Event is full")
+    
+    # Add to attendees
+    await database.events.update_one(
+        {"id": event_id},
+        {"$push": {"attendees": current_user.id}}
+    )
+    
+    return {"success": True, "message": "Successfully joined event"}
+
+@api_router.delete("/events/{event_id}/attend")
+async def leave_event(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Leave an event"""
+    await database.events.update_one(
+        {"id": event_id},
+        {"$pull": {"attendees": current_user.id}}
+    )
+    
+    return {"success": True, "message": "Successfully left event"}
+
+@api_router.get("/events/{event_id}/attendees")
+async def get_event_attendees(
+    event_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get list of event attendees"""
+    event = await database.events.find_one({"id": event_id})
+    
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    attendee_ids = event.get("attendees", [])
+    
+    # Get attendee details
+    attendees = []
+    for user_id in attendee_ids:
+        user = await database.users.find_one({"id": user_id})
+        if user:
+            attendees.append({
+                "id": user["id"],
+                "name": user["name"],
+                "age": user.get("age"),
+                "city": user.get("city"),
+                "photos": user.get("photos", [])
+            })
+    
+    return {"attendees": attendees, "count": len(attendees)}
+
+# ===== SOCIAL & GAMIFICATION ROUTES =====
+@api_router.post("/stories")
+async def create_story(
+    story_data: StoryCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Create a story (expires in 24h)"""
+    from datetime import timedelta
+    
+    story_doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "media_url": story_data.media_url,
+        "media_type": story_data.media_type,
+        "caption": story_data.caption,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(hours=24),
+        "views": []
+    }
+    
+    await database.stories.insert_one(story_doc)
+    return Story(**story_doc)
+
+@api_router.get("/stories")
+async def get_active_stories(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get all active stories (not expired)"""
+    now = datetime.utcnow()
+    
+    # Get all non-expired stories
+    stories = await database.stories.find({
+        "expires_at": {"$gt": now}
+    }).sort("created_at", -1).to_list(1000)
+    
+    # Group by user
+    stories_by_user = {}
+    for story in stories:
+        user_id = story["user_id"]
+        if user_id not in stories_by_user:
+            # Get user info
+            user = await database.users.find_one({"id": user_id})
+            stories_by_user[user_id] = {
+                "user_id": user_id,
+                "user_name": user["name"] if user else "Unknown",
+                "user_photo": user.get("photos", [None])[0] if user and user.get("photos") else None,
+                "stories": []
+            }
+        
+        stories_by_user[user_id]["stories"].append(Story(**story))
+    
+    return list(stories_by_user.values())
+
+@api_router.get("/stories/{user_id}")
+async def get_user_stories(
+    user_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get stories from a specific user"""
+    now = datetime.utcnow()
+    
+    stories = await database.stories.find({
+        "user_id": user_id,
+        "expires_at": {"$gt": now}
+    }).sort("created_at", 1).to_list(100)
+    
+    # Mark as viewed
+    for story in stories:
+        if current_user.id not in story.get("views", []):
+            await database.stories.update_one(
+                {"id": story["id"]},
+                {"$push": {"views": current_user.id}}
+            )
+    
+    return [Story(**s) for s in stories]
+
+@api_router.delete("/stories/{story_id}")
+async def delete_story(
+    story_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Delete own story"""
+    result = await database.stories.delete_one({
+        "id": story_id,
+        "user_id": current_user.id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Story not found")
+    
+    return {"success": True}
+
+@api_router.get("/badges")
+async def get_user_badges(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get user's badges"""
+    # Check and award new badges
+    await check_and_award_badges(database, current_user.id)
+    
+    # Get all badges
+    badges = await database.badges.find({
+        "user_id": current_user.id
+    }).sort("earned_at", -1).to_list(100)
+    
+    return [Badge(**b) for b in badges]
+
+@api_router.post("/referrals/generate")
+async def generate_referral(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Generate referral code for user"""
+    code = await create_referral_code(database, current_user.id)
+    return {"code": code, "share_url": f"https://bpmsocial.app/join?ref={code}"}
+
+@api_router.post("/referrals/redeem")
+async def redeem_referral(
+    redemption: ReferralRedemption,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Redeem a referral code"""
+    success = await redeem_referral_code(database, redemption.code, current_user.id)
+    
+    if not success:
+        raise HTTPException(status_code=400, detail="Invalid or expired referral code")
+    
+    return {"success": True, "message": "Referral code redeemed! You've earned a badge!"}
+
+@api_router.get("/referrals/stats")
+async def get_referral_stats(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get referral statistics"""
+    referral = await database.referral_codes.find_one({"referrer_id": current_user.id})
+    
+    if not referral:
+        return {"code": None, "referred_count": 0, "referred_users": []}
+    
+    return {
+        "code": referral["code"],
+        "referred_count": len(referral.get("referred_users", [])),
+        "referred_users": referral.get("referred_users", [])
+    }
+
+# ===== PREMIUM & SECURITY ROUTES =====
+@api_router.post("/users/verify")
+async def request_verification(
+    verification: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Request identity verification with selfie"""
+    # In production, this would verify the selfie with AI
+    await database.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"verified": True, "verification_requested_at": datetime.utcnow()}}
+    )
+    
+    return {"success": True, "message": "Verification request submitted"}
+
+@api_router.put("/users/incognito")
+async def toggle_incognito_mode(
+    enabled: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Toggle incognito mode"""
+    await database.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"incognito_mode": enabled.get("enabled", False)}}
+    )
+    
+    return {"success": True, "incognito_enabled": enabled.get("enabled", False)}
+
+@api_router.post("/premium/subscribe")
+async def subscribe_premium(
+    subscription_data: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Subscribe to premium (mock Stripe integration)"""
+    from datetime import timedelta
+    
+    plan_type = subscription_data.get("plan_type", "monthly")
+    
+    # Mock subscription creation
+    duration = timedelta(days=365 if plan_type == "yearly" else 30)
+    
+    subscription_doc = {
+        "user_id": current_user.id,
+        "plan_type": plan_type,
+        "start_date": datetime.utcnow(),
+        "end_date": datetime.utcnow() + duration,
+        "active": True
+    }
+    
+    await database.subscriptions.insert_one(subscription_doc)
+    await database.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"premium": True}}
+    )
+    
+    return {"success": True, "message": "Premium subscription activated!"}
+
+@api_router.get("/premium/status")
+async def get_premium_status(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get premium subscription status"""
+    subscription = await database.subscriptions.find_one({
+        "user_id": current_user.id,
+        "active": True
+    })
+    
+    if not subscription:
+        return {"premium": False, "subscription": None}
+    
+    return {
+        "premium": True,
+        "subscription": {
+            "plan_type": subscription["plan_type"],
+            "start_date": subscription["start_date"].isoformat(),
+            "end_date": subscription["end_date"].isoformat()
+        }
+    }
+
+# ===== SETTINGS & PREFERENCES ROUTES =====
+@api_router.put("/users/preferences")
+async def update_user_preferences(
+    preferences: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Update user preferences and filters"""
+    allowed_fields = [
+        "age_min", "age_max", "distance_max", "height_min", "height_max",
+        "lifestyle", "smoker_preference", "show_me", "dark_mode"
+    ]
+    
+    update_dict = {k: v for k, v in preferences.items() if k in allowed_fields}
+    
+    if update_dict:
+        await database.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"preferences": update_dict}}
+        )
+    
+    return {"success": True}
+
+@api_router.put("/users/pause-account")
+async def pause_account(
+    paused: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Pause account temporarily"""
+    await database.users.update_one(
+        {"id": current_user.id},
+        {"$set": {
+            "account_paused": paused.get("paused", True),
+            "paused_at": datetime.utcnow() if paused.get("paused") else None
+        }}
+    )
+    
+    return {"success": True, "paused": paused.get("paused", True)}
+
+@api_router.get("/users/preferences")
+async def get_user_preferences(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get user preferences"""
+    user = await database.users.find_one({"id": current_user.id})
+    
+    return user.get("preferences", {
+        "age_min": 18,
+        "age_max": 99,
+        "distance_max": 50,
+        "dark_mode": True
+    })
 
 # Include the router in the main app
 fastapi_app.include_router(api_router)

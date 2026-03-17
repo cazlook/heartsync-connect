@@ -125,6 +125,289 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ COMPREHENSIVE TEST PASSED - All registration scenarios working: valid registration with auto-login, duplicate email rejection (400), missing fields validation (422). JWT token generated correctly, user stored in MongoDB with proper data structure."
+
+  # ===== FASE 4 - GEOLOCALIZZAZIONE & EVENTS =====
+  - task: "PUT /api/users/location - Update user location"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Location update working correctly: accepts latitude, longitude, city, country parameters, stores location data in MongoDB, returns success response"
+
+  - task: "POST /api/events - Create event"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Event creation working correctly: creates events with location coordinates, address, start/end times, max attendees, image URL, proper UUID generation, MongoDB storage"
+
+  - task: "GET /api/events - List events with distance filter"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/geolocation.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Event listing working correctly: returns events list, supports distance filtering, includes attendance status, proper response format with all event details"
+
+  - task: "GET /api/events/nearby - Nearby events"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/geolocation.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Nearby events working correctly: filters events by max_distance_km parameter, uses Haversine formula for distance calculation, returns sorted by distance"
+
+  - task: "GET /api/events/{id} - Event details with distance"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/geolocation.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Event details working correctly: returns complete event info, calculates distance from user location, includes attendance status, proper error handling for non-existent events"
+
+  - task: "POST /api/events/{id}/attend - Attend event"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Event attendance working correctly: adds user to attendees list, prevents duplicate attendance, checks max_attendees limit, proper success messages"
+
+  - task: "DELETE /api/events/{id}/attend - Leave event"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Event leave working correctly: removes user from attendees list, proper success response, handles non-attendance gracefully"
+
+  - task: "GET /api/events/{id}/attendees - List attendees"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Attendees list working correctly: returns attendee details with user info, accurate count, proper data structure with names, ages, cities, photos"
+
+  # ===== FASE 5 - SOCIAL & GAMIFICATION =====
+  - task: "POST /api/stories - Create story (24h expiry)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Story creation working correctly: creates stories with media URL, caption, media type, automatic 24h expiry time calculation (within 1 minute accuracy), UUID generation"
+
+  - task: "GET /api/stories - Get all active stories"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "❌ INITIAL ISSUE - IndexError when accessing empty photos array in line 732"
+      - working: true
+        agent: "testing"
+        comment: "✅ FIXED & TESTED - Minor fix applied: Added safety check for empty photos array. Active stories now working correctly: groups stories by user, includes user info (name, photo), filters expired stories, proper response format"
+
+  - task: "GET /api/stories/{user_id} - Get user stories"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - User stories working correctly: returns user's non-expired stories, automatic view tracking when accessed by other users, sorted by creation time"
+
+  - task: "DELETE /api/stories/{id} - Delete story"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Story deletion working correctly: deletes own stories only, proper authorization checks, 404 for non-existent/unauthorized stories"
+
+  - task: "GET /api/badges - Get user badges (auto-award on milestones)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/gamification.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Badge system working correctly: automatically checks and awards badges based on user milestones, returns earned badges list, proper badge definitions with Italian titles"
+
+  - task: "POST /api/referrals/generate - Generate referral code"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/gamification.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Referral generation working correctly: generates unique 8-character codes, prevents duplicates, returns code and share URL, upsert functionality for existing users"
+
+  - task: "POST /api/referrals/redeem - Redeem referral code"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/gamification.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Referral redemption working correctly: validates codes, prevents duplicate redemptions, awards badges to both referrer and referee, proper success response"
+
+  - task: "GET /api/referrals/stats - Referral statistics"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Referral stats working correctly: returns referral code, count of referred users, list of referred user IDs, handles users without referral codes"
+
+  # ===== FASE 6 - PREMIUM & SECURITY =====
+  - task: "POST /api/users/verify - Request identity verification"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Identity verification working correctly: accepts verification data (selfie/document URLs), updates user verified status, proper success response"
+
+  - task: "PUT /api/users/incognito - Toggle incognito mode"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Incognito mode working correctly: toggles incognito_mode flag in user profile, returns current status, proper boolean handling"
+
+  - task: "POST /api/premium/subscribe - Subscribe to premium (mock)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Premium subscription working correctly: mock Stripe integration, supports monthly/yearly plans, creates subscription record, updates user premium status"
+
+  - task: "GET /api/premium/status - Get premium status"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Premium status working correctly: returns premium boolean and subscription details, handles non-premium users, proper subscription date format"
+
+  # ===== FASE 7 - SETTINGS AVANZATI =====
+  - task: "PUT /api/users/preferences - Update user preferences"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Preferences update working correctly: accepts age/distance/height ranges, lifestyle preferences, smoker preferences, show_me settings, dark_mode toggle"
+
+  - task: "GET /api/users/preferences - Get user preferences"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Preferences retrieval working correctly: returns user preferences with defaults, proper data structure, handles users without saved preferences"
+
+  - task: "PUT /api/users/pause-account - Pause account temporarily"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TEST PASSED - Account pause working correctly: toggles account_paused flag, sets/clears paused_at timestamp, supports both pause and unpause operations, proper status responses"
   
   - task: "POST /api/auth/login - User login"
     implemented: true
@@ -645,7 +928,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "FASE 3 - Dashboard BPM Personali completed"
+    - "FASE 4-7 backend testing completed - all 23 endpoints tested"
   stuck_tasks:
     - "Socket.io WebSocket implementation"
   test_all: false
@@ -822,54 +1105,64 @@ agent_communication:
 
   - agent: "testing"
     message: |
-      🎉 FASE 3 - DASHBOARD BPM PERSONALI BACKEND TESTING COMPLETED - 15/15 BIOMETRIC TESTS PASSED
-
-      ✅ BIOMETRIC DATA COLLECTION FULLY WORKING:
-      • POST /api/biometrics/heartrate: Heart rate reading collection with BPM values and context
-      • POST /api/biometrics/reaction: Emotional reaction data with profile info and intensity levels  
-      • Authentication: All biometric endpoints properly protected with JWT
-      • Data Persistence: Heart rate readings and reactions stored correctly in MongoDB
-      • UUID Generation: Proper unique IDs for all biometric records
-      • Timestamp Recording: Accurate time tracking for all biometric events
-
-      ✅ BIOMETRIC ANALYTICS & STATISTICS WORKING:
-      • GET /api/biometrics/stats: Overall statistics with avg/max/min BPM calculations
-      • Statistical Accuracy: Verified calculations for average reaction intensity and totals
-      • Empty State Handling: Gracefully returns zeros when no data exists
-      • Most Reactive Time: Calculates peak emotional response hours correctly
-
-      ✅ ADVANCED BIOMETRIC ANALYTICS WORKING:
-      • GET /api/biometrics/top-reactions: Top profiles by BPM delta with MongoDB aggregation
-      • Sorting & Limits: Properly sorted by max BPM delta, respects limit parameter (max 50)
-      • GET /api/biometrics/timeline: BPM timeline for charts with time-based filtering
-      • Timeline Sorting: Correctly sorted ascending by timestamp for chart display
-      • GET /api/biometrics/history: Reaction history with descending timestamp sort
-      • Time Range Support: Flexible day ranges (7-90 days) for all timeline endpoints
-
-      ✅ WEEKLY SUMMARY & AGGREGATION WORKING:
-      • GET /api/biometrics/weekly-summary: Daily breakdown with aggregated statistics
-      • Daily Aggregation: Groups readings and reactions by day with average BPM
-      • MongoDB Pipelines: Complex aggregation queries working correctly
-      • Dashboard Ready: Proper data structure for frontend dashboard widgets
-
-      ✅ COMPREHENSIVE TESTING PERFORMED:
-      • Created comprehensive backend_test.py with 15 biometric-specific test scenarios
-      • Tested empty state behavior, data collection, analytics, and aggregation
-      • Verified statistical calculations accuracy with multiple test data points
-      • Tested authentication, authorization, and data isolation
-      • Extensive edge case testing: different day ranges, limit parameters, sorting
-      • Real-world test data: Used realistic Italian names and BPM values
-
-      📊 COMPLETE TEST RESULTS:
-      • All 7 biometric endpoints: ✅ WORKING
-      • Data collection (heartrate + reactions): ✅ WORKING  
-      • Statistical calculations: ✅ WORKING
-      • Analytics & aggregation: ✅ WORKING
-      • Authentication/Authorization: ✅ WORKING
-      • MongoDB aggregation pipelines: ✅ WORKING
-
+      🎉 FASE 4-7 - COMPREHENSIVE BACKEND TESTING COMPLETED - 23/23 ENDPOINTS WORKING!
+      
+      ✅ FASE 4 - GEOLOCALIZZAZIONE & EVENTS (8/8 ENDPOINTS WORKING):
+      • PUT /api/users/location: Location updates with coordinates and city info
+      • POST /api/events: Event creation with geolocation, dates, max attendees
+      • GET /api/events: Event listing with distance filtering using Haversine formula
+      • GET /api/events/nearby: Nearby events with max_distance_km parameter
+      • GET /api/events/{id}: Event details with calculated distance from user
+      • POST /api/events/{id}/attend: Event attendance with duplicate/capacity checks
+      • DELETE /api/events/{id}/attend: Event departure functionality
+      • GET /api/events/{id}/attendees: Attendees list with user details
+      
+      ✅ FASE 5 - SOCIAL & GAMIFICATION (8/8 ENDPOINTS WORKING):
+      • POST /api/stories: Story creation with 24h automatic expiry
+      • GET /api/stories: Active stories grouped by user (FIXED: empty photos array issue)
+      • GET /api/stories/{user_id}: User stories with view tracking
+      • DELETE /api/stories/{id}: Story deletion with authorization
+      • GET /api/badges: Badge system with automatic milestone awards
+      • POST /api/referrals/generate: Unique referral code generation
+      • POST /api/referrals/redeem: Referral redemption with badge rewards
+      • GET /api/referrals/stats: Referral statistics and tracking
+      
+      ✅ FASE 6 - PREMIUM & SECURITY (4/4 ENDPOINTS WORKING):
+      • POST /api/users/verify: Identity verification request handling
+      • PUT /api/users/incognito: Incognito mode toggle functionality
+      • POST /api/premium/subscribe: Mock premium subscription (monthly/yearly)
+      • GET /api/premium/status: Premium status with subscription details
+      
+      ✅ FASE 7 - SETTINGS AVANZATI (3/3 ENDPOINTS WORKING):
+      • PUT /api/users/preferences: User preference updates (age, distance, lifestyle)
+      • GET /api/users/preferences: Preferences retrieval with defaults
+      • PUT /api/users/pause-account: Account pause/unpause functionality
+      
+      ✅ ADDITIONAL VALIDATIONS:
+      • Authentication Security: All 23 endpoints properly require JWT authentication
+      • Distance Calculations: Haversine formula working correctly for geolocation
+      • Story Expiry: 24h automatic expiry implemented precisely
+      • Badge Auto-Award: Milestone detection and badge awarding working
+      • Referral System: Unique codes, redemption tracking, cross-user badge awards
+      • Premium Integration: Mock Stripe subscription handling ready for production
+      • Data Persistence: All operations correctly storing/retrieving from MongoDB
+      
+      🔧 MINOR FIX APPLIED:
+      • Fixed GET /api/stories endpoint: Added safety check for empty photos array
+      • Issue was IndexError on line 732 when users had no profile photos
+      • Applied defensive programming fix and verified working
+      
+      📊 COMPREHENSIVE TEST RESULTS:
+      • Total Endpoints Tested: 23/23 (100%)
+      • FASE 4 (Geolocalizzazione): ✅ 8/8 WORKING
+      • FASE 5 (Social & Gamification): ✅ 8/8 WORKING  
+      • FASE 6 (Premium & Security): ✅ 4/4 WORKING
+      • FASE 7 (Settings Avanzati): ✅ 3/3 WORKING
+      • Authentication Security: ✅ ALL SECURED
+      • Overall Success Rate: 100% (23/23)
+      
       Backend URL: https://bpm-social.preview.emergentagent.com/api
-      Database: MongoDB biometric storage working perfectly
-      REST API Status: Production-ready for all FASE 3 biometric dashboard functionality
-
-      🔥 FASE 3 DASHBOARD BPM PERSONALI BACKEND IS PRODUCTION-READY!
+      Database: MongoDB operations working perfectly across all collections
+      REST API Status: Production-ready for all FASE 4-7 functionality
+      
+      🏆 ALL FASE 4-7 BACKEND FEATURES ARE PRODUCTION-READY!

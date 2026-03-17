@@ -1,13 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Camera, Watch, ChevronDown } from "lucide-react";
+import { Camera, Watch, ChevronDown, Award } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import axios from "axios";
+
+const BACKEND_URL = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
 
 const ALL_INTERESTS = [
   "Musica", "Viaggi", "Sport", "Arte", "Cinema", "Cucina",
   "Fotografia", "Lettura", "Yoga", "Tecnologia", "Natura", "Danza",
 ];
 
+interface Badge {
+  id: string;
+  badge_type: string;
+  title: string;
+  description: string;
+  icon: string;
+  earned_at: string;
+}
+
 export default function ProfilePage() {
+  const { token } = useAuth();
   const [name, setName] = useState("Sofia");
   const [age, setAge] = useState("27");
   const [city, setCity] = useState("Milano");
@@ -16,6 +30,24 @@ export default function ProfilePage() {
   const [seeking, setSeeking] = useState("Uomini");
   const [selectedInterests, setSelectedInterests] = useState<string[]>(["Viaggi", "Arte", "Fotografia"]);
   const [watchConnected, setWatchConnected] = useState(true);
+  const [badges, setBadges] = useState<Badge[]>([]);
+
+  useEffect(() => {
+    if (token) {
+      loadBadges();
+    }
+  }, [token]);
+
+  const loadBadges = async () => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/badges`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBadges(response.data);
+    } catch (error) {
+      console.error('Error loading badges:', error);
+    }
+  };
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests(prev =>

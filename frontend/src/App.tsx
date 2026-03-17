@@ -7,7 +7,7 @@ import { SocketProvider } from "@/contexts/SocketContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import BottomNav from "@/components/BottomNav";
 import DiscoveryPage from "@/pages/DiscoveryPage";
-import EventsPage from "@/pages/EventsPage";
+import EventsPageRealtime from "@/pages/EventsPageRealtime";
 import MatchesPageRealtime from "@/pages/MatchesPageRealtime";
 import ChatPageRealtime from "@/pages/ChatPageRealtime";
 import NotificationCenterPage from "@/pages/NotificationCenterPage";
@@ -56,7 +56,7 @@ const AppRoutes = () => {
         <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
         <Route path="/" element={<ProtectedRoute><DiscoveryPage /></ProtectedRoute>} />
         <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-        <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
+        <Route path="/events" element={<ProtectedRoute><EventsPageRealtime /></ProtectedRoute>} />
         <Route path="/matches" element={<ProtectedRoute><MatchesPageRealtime /></ProtectedRoute>} />
         <Route path="/chat/:matchId" element={<ProtectedRoute><ChatPageRealtime /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationCenterPage /></ProtectedRoute>} />

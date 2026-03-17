@@ -149,3 +149,112 @@ class FCMToken(BaseModel):
     device_type: str = "web"  # web, ios, android
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+# Location & Events Models
+class Location(BaseModel):
+    latitude: float
+    longitude: float
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+class Event(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    location: Location
+    address: str
+    start_time: datetime
+    end_time: datetime
+    created_by: str
+    attendees: List[str] = []
+    max_attendees: Optional[int] = None
+    image_url: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class EventCreate(BaseModel):
+    title: str
+    description: str
+    latitude: float
+    longitude: float
+    address: str
+    city: Optional[str] = None
+    start_time: datetime
+    end_time: datetime
+    max_attendees: Optional[int] = None
+    image_url: Optional[str] = None
+
+class EventResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    location: Location
+    address: str
+    start_time: datetime
+    end_time: datetime
+    created_by: str
+    attendees_count: int
+    max_attendees: Optional[int] = None
+    image_url: Optional[str] = None
+    distance_km: Optional[float] = None
+    is_attending: bool = False
+
+class UserLocationUpdate(BaseModel):
+    latitude: float
+    longitude: float
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+# Social & Gamification Models
+class Story(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    media_url: str
+    media_type: str = "image"  # image, video
+    caption: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+    views: List[str] = []  # user_ids who viewed
+
+class StoryCreate(BaseModel):
+    media_url: str
+    media_type: str = "image"
+    caption: Optional[str] = None
+
+class BadgeType:
+    FIRST_MATCH = "first_match"
+    FIRST_MESSAGE = "first_message"
+    TEN_EVENTS = "ten_events"
+    CARDIAC_CONNECTION = "cardiac_connection"
+    SOCIAL_BUTTERFLY = "social_butterfly"
+    EARLY_ADOPTER = "early_adopter"
+
+class Badge(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    badge_type: str
+    title: str
+    description: str
+    icon: str
+    earned_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ReferralCode(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    code: str
+    referrer_id: str
+    referred_users: List[str] = []
+    max_uses: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ReferralRedemption(BaseModel):
+    code: str
+
+# Premium & Security Models  
+class VerificationRequest(BaseModel):
+    selfie_url: str
+
+class PremiumSubscription(BaseModel):
+    user_id: str
+    plan_type: str  # monthly, yearly
+    start_date: datetime
+    end_date: datetime
+    active: bool = True
+
