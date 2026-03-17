@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 import { useSocket } from './SocketContext';
 import { toast } from 'sonner';
 
-const BACKEND_URL = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'https://bpm-social.preview.emergentagent.com';
 
 interface Notification {
   id: string;
