@@ -2,8 +2,9 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 from datetime import datetime
 import uuid
+from enum import Enum
 
-# User Models
+# ===== USER MODELS =====
 class UserBase(BaseModel):
     email: EmailStr
     name: str
@@ -12,7 +13,7 @@ class UserBase(BaseModel):
     city: Optional[str] = None
     interests: List[str] = []
     photos: List[str] = []
-    
+
 class UserCreate(UserBase):
     password: str
 
@@ -25,7 +26,7 @@ class UserResponse(UserBase):
     created_at: datetime
     verified: bool = False
     premium: bool = False
-    
+
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
@@ -39,17 +40,30 @@ class User(UserResponse):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
 
-# Profile Models
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+# ===== TOKEN BLACKLIST =====
+class TokenBlacklist(BaseModel):
+    """Revoked tokens stored in DB for logout invalidation"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    jti: str  # JWT ID claim
+    user_id: str
+    revoked_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+
+# ===== PROFILE MODELS =====
 class HeartRateReaction(BaseModel):
     profile_id: str
     bpm_delta: int
     timestamp: datetime
     intensity: str  # low, medium, high
 
-# Biometric Models
+# ===== BIOMETRIC MODELS =====
 class HeartRateReading(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -97,14 +111,26 @@ class TopReaction(BaseModel):
     timestamp: datetime
     reaction_count: int
 
+# ===== MATCH MODELS =====
 class Match(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user1_id: str
     user2_id: str
-    cardiac_score: int
+    cardiac_score: float  # 0-100, calcolato dall'algoritmo reale
+    bpm_delta_avg: Optional[float] = None  # Delta BPM medio tra i due utenti
+    reaction_intensity_avg: Optional[float] = None
     matched_at: datetime = Field(default_factory=datetime.utcnow)
-    
-# Chat Models
+
+class MatchScore(BaseModel):
+    """Risultato dell'algoritmo di matching cardiaco"""
+    user1_id: str
+    user2_id: str
+    cardiac_score: float
+    bpm_delta_avg: float
+    reaction_intensity_avg: float
+    compatibility_level: str  # low, medium, high, exceptional
+
+# ===== CHAT MODELS =====
 class ChatMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     match_id: str
@@ -118,13 +144,16 @@ class ChatMessageCreate(BaseModel):
     message: str
     message_type: str = "text"
 
-# Notification Models
+# ===== NOTIFICATION MODELS =====
 class NotificationType:
     NEW_MATCH = "new_match"
     NEW_MESSAGE = "new_message"
     NEW_EVENT = "new_event"
     MATCH_LIKED_YOU = "match_liked_you"
     EVENT_REMINDER = "event_reminder"
+    EVENT_INVITE = "event_invite"
+    EVENT_INVITE_ACCEPTED = "event_invite_accepted"
+    EVENT_INVITE_DECLINED = "event_invite_declined"
 
 class Notification(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -135,7 +164,7 @@ class Notification(BaseModel):
     read: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     data: dict = {}  # Extra data like match_id, message_id, event_id
-    
+
 class NotificationCreate(BaseModel):
     user_id: str
     notification_type: str
@@ -149,7 +178,7 @@ class FCMToken(BaseModel):
     device_type: str = "web"  # web, ios, android
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-# Location & Events Models
+# ===== LOCATION & EVENT MODELS =====
 class Location(BaseModel):
     latitude: float
     longitude: float
@@ -203,7 +232,35 @@ class UserLocationUpdate(BaseModel):
     city: Optional[str] = None
     country: Optional[str] = None
 
-# Social & Gamification Models
+# ===== EVENT INVITE MODELS =====
+class InviteStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+
+class EventInvite(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    event_id: str
+    inviter_id: str
+    invitee_id: str
+    status: InviteStatus = InviteStatus.PENDING
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+
+class EventInviteCreate(BaseModel):
+    """Payload per invitare uno o piu' match a un evento"""
+    match_ids: List[str]  # lista di user_id dei match da invitare
+
+class EventInviteResponse(BaseModel):
+    invite: EventInvite
+    inviter_name: str
+    invitee_name: str
+    event_title: str
+
+class EventInviteStatusUpdate(BaseModel):
+    status: InviteStatus  # accepted o declined
+
+# ===== SOCIAL & GAMIFICATION MODELS =====
 class Story(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -247,14 +304,48 @@ class ReferralCode(BaseModel):
 class ReferralRedemption(BaseModel):
     code: str
 
-# Premium & Security Models  
+# ===== PREMIUM & SECURITY MODELS =====
 class VerificationRequest(BaseModel):
     selfie_url: str
+
+class VerificationStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+class IdentityVerification(BaseModel):
+    """Record verifica identita' in attesa di revisione AI/manuale"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    selfie_url: str
+    status: VerificationStatus = VerificationStatus.PENDING
+    submitted_at: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
 
 class PremiumSubscription(BaseModel):
     user_id: str
     plan_type: str  # monthly, yearly
+    stripe_subscription_id: Optional[str] = None
+    stripe_customer_id: Optional[str] = None
     start_date: datetime
     end_date: datetime
     active: bool = True
 
+class StripeWebhookEvent(BaseModel):
+    """Payload ricevuto da Stripe webhook"""
+    type: str
+    data: dict
+
+# ===== MEDIA UPLOAD MODELS =====
+class UploadPresignedUrl(BaseModel):
+    """URL pre-firmato S3 per upload diretto dal client"""
+    upload_url: str
+    file_key: str
+    public_url: str
+    expires_in: int  # secondi
+
+class MediaUploadRequest(BaseModel):
+    file_name: str
+    content_type: str  # image/jpeg, image/png, video/mp4
+    upload_type: str  # story, profile_photo
