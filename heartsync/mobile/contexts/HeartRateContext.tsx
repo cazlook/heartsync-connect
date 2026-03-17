@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface ProfileReaction {
@@ -7,22 +7,31 @@ interface ProfileReaction {
   timestamp: number;
 }
 
-interface HeartRateContextType {
+export interface HeartRateContextType {
   baselineBpm: number | null;
+  currentBpm: number | null;
+  isMonitoring: boolean;
   setBaseline: (bpm: number) => Promise<void>;
+  setCurrentBpm: (bpm: number) => void;
+  startMonitoring: () => void;
+  stopMonitoring: () => void;
   profileReactions: ProfileReaction[];
   addProfileReaction: (profile_id: string, bpm_delta: number) => void;
   getReactionForProfile: (profile_id: string) => ProfileReaction | undefined;
   calculateMatchBonus: (profile_id: string) => number;
+  getBpmDelta: () => number;
 }
 
 const HeartRateContext = createContext<HeartRateContextType | null>(null);
 
-const BASELINE_KEY = "heartsync_baseline_bpm";
+const BASELINE_KEY = "synclove_baseline_bpm";
 
 export function HeartRateProvider({ children }: { children: ReactNode }) {
   const [baselineBpm, setBaselineBpmState] = useState<number | null>(null);
+  const [currentBpm, setCurrentBpmState] = useState<number | null>(null);
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const [profileReactions, setProfileReactions] = useState<ProfileReaction[]>([]);
+  const monitorIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   React.useEffect(() => {
     AsyncStorage.getItem(BASELINE_KEY).then((val) => {
@@ -33,6 +42,22 @@ export function HeartRateProvider({ children }: { children: ReactNode }) {
   const setBaseline = useCallback(async (bpm: number) => {
     setBaselineBpmState(bpm);
     await AsyncStorage.setItem(BASELINE_KEY, String(bpm));
+  }, []);
+
+  const setCurrentBpm = useCallback((bpm: number) => {
+    setCurrentBpmState(bpm);
+  }, []);
+
+  const startMonitoring = useCallback(() => {
+    setIsMonitoring(true);
+  }, []);
+
+  const stopMonitoring = useCallback(() => {
+    setIsMonitoring(false);
+    if (monitorIntervalRef.current) {
+      clearInterval(monitorIntervalRef.current);
+      monitorIntervalRef.current = null;
+    }
   }, []);
 
   const addProfileReaction = useCallback((profile_id: string, bpm_delta: number) => {
@@ -47,15 +72,11 @@ export function HeartRateProvider({ children }: { children: ReactNode }) {
     [profileReactions]
   );
 
-  /**
-   * Calcola il bonus di punteggio basato sulla variazione cardiaca.
-   *
-   * Formula:
-   *   delta_pct = (bpm_delta / baseline) * 100
-   *   bonus = min(delta_pct * 1.5, 40)
-   *
-   * Esempio: baseline 68, delta +14 → delta_pct ≈ 20.5% → bonus ≈ 30 punti
-   */
+  const getBpmDelta = useCallback((): number => {
+    if (!currentBpm || !baselineBpm) return 0;
+    return currentBpm - baselineBpm;
+  }, [currentBpm, baselineBpm]);
+
   const calculateMatchBonus = useCallback(
     (profile_id: string): number => {
       const reaction = profileReactions.find((r) => r.profile_id === profile_id);
@@ -68,7 +89,20 @@ export function HeartRateProvider({ children }: { children: ReactNode }) {
 
   return (
     <HeartRateContext.Provider
-      value={{ baselineBpm, setBaseline, profileReactions, addProfileReaction, getReactionForProfile, calculateMatchBonus }}
+      value={{
+        baselineBpm,
+        currentBpm,
+        isMonitoring,
+        setBaseline,
+        setCurrentBpm,
+        startMonitoring,
+        stopMonitoring,
+        profileReactions,
+        addProfileReaction,
+        getReactionForProfile,
+        calculateMatchBonus,
+        getBpmDelta,
+      }}
     >
       {children}
     </HeartRateContext.Provider>

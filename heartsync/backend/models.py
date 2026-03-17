@@ -198,6 +198,7 @@ class EventCreate(BaseModel):
     longitude: float
     address: str
     city: Optional[str] = None
+    event_type: str = "social"  # social, sport, cena, trekking, concerto, arte, party, cinema
     start_time: datetime
     end_time: datetime
     max_attendees: Optional[int] = None
@@ -209,6 +210,7 @@ class EventResponse(BaseModel):
     description: str
     location: Location
     address: str
+    event_type: str = "social"
     start_time: datetime
     end_time: datetime
     created_by: str

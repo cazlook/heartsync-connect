@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { Chrome as Home, MessageCircle, User, Users } from "lucide-react-native";
+import { Chrome as Home, MessageCircle, User, Users, CalendarDays } from "lucide-react-native";
 
 export default function AppLayout() {
   return (
@@ -36,8 +36,11 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat/[matchId]"
-        options={{ href: null }}
+        name="events"
+        options={{
+          title: "Eventi",
+          tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size} />,
+        }}
       />
       <Tabs.Screen
         name="profile"
@@ -45,6 +48,10 @@ export default function AppLayout() {
           title: "Profilo",
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
+      />
+      <Tabs.Screen
+        name="chat/[matchId]"
+        options={{ href: null }}
       />
     </Tabs>
   );

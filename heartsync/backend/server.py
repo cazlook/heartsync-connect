@@ -1468,6 +1468,182 @@ async def bootstrap_superadmin(body: dict, database=Depends(get_db)):
 
 
 
+
+# ─── EVENTS ────────────────────────────────────────────────────────────────────
+
+events_router = APIRouter(prefix="/api/events", tags=["events"])
+
+import math as _math
+
+def _haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    dlat = _math.radians(lat2 - lat1)
+    dlon = _math.radians(lon2 - lon1)
+    a = _math.sin(dlat/2)**2 + _math.cos(_math.radians(lat1)) * _math.cos(_math.radians(lat2)) * _math.sin(dlon/2)**2
+    return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1-a))
+
+@events_router.post("", status_code=201)
+async def create_event(
+    event_data: EventCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    event = {
+        "id": str(uuid.uuid4()),
+        "title": event_data.title,
+        "description": event_data.description,
+        "location": {"latitude": event_data.latitude, "longitude": event_data.longitude, "city": event_data.city},
+        "address": event_data.address,
+        "event_type": event_data.event_type,
+        "start_time": event_data.start_time,
+        "end_time": event_data.end_time,
+        "created_by": current_user.id,
+        "created_by_name": current_user.name,
+        "attendees": [current_user.id],
+        "max_attendees": event_data.max_attendees,
+        "image_url": event_data.image_url,
+        "created_at": datetime.utcnow(),
+    }
+    await database.events.insert_one(event)
+    event.pop("_id", None)
+    return event
+
+@events_router.get("")
+async def list_events(
+    city: Optional[str] = None,
+    event_type: Optional[str] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    radius_km: float = 50,
+    skip: int = 0,
+    limit: int = 20,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    query: dict = {"start_time": {"$gte": datetime.utcnow()}}
+    if city:
+        query["location.city"] = {"$regex": city, "$options": "i"}
+    if event_type:
+        query["event_type"] = event_type
+    events = await database.events.find(query).sort("start_time", 1).skip(skip).limit(limit).to_list(limit)
+    total = await database.events.count_documents(query)
+    result = []
+    for e in events:
+        e.pop("_id", None)
+        dist = None
+        if lat and lon and e.get("location"):
+            dist = round(_haversine(lat, lon, e["location"]["latitude"], e["location"]["longitude"]), 1)
+        result.append({**e, "attendees_count": len(e.get("attendees", [])), "is_attending": current_user.id in e.get("attendees", []), "distance_km": dist})
+    return {"events": result, "total": total}
+
+@events_router.get("/my")
+async def my_events(current_user: UserResponse = Depends(get_current_user_dependency), database=Depends(get_db)):
+    created = await database.events.find({"created_by": current_user.id}).sort("start_time", 1).to_list(50)
+    attending = await database.events.find({"attendees": current_user.id, "created_by": {"$ne": current_user.id}}).sort("start_time", 1).to_list(50)
+    invites = await database.event_invites.find({"invitee_id": current_user.id, "status": "pending"}).to_list(20)
+    for doc in created + attending:
+        doc.pop("_id", None)
+        doc["attendees_count"] = len(doc.get("attendees", []))
+        doc["is_attending"] = True
+    for doc in invites:
+        doc.pop("_id", None)
+    return {"created": created, "attending": attending, "invites": invites}
+
+@events_router.get("/{event_id}")
+async def get_event(event_id: str, current_user: UserResponse = Depends(get_current_user_dependency), database=Depends(get_db)):
+    event = await database.events.find_one({"id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    event.pop("_id", None)
+    event["attendees_count"] = len(event.get("attendees", []))
+    event["is_attending"] = current_user.id in event.get("attendees", [])
+    # get attendees details
+    attendee_ids = event.get("attendees", [])[:10]
+    attendees_detail = []
+    if attendee_ids:
+        users = await database.users.find({"id": {"$in": attendee_ids}}, {"password_hash": 0, "_id": 0}).to_list(10)
+        attendees_detail = [{"id": u["id"], "name": u["name"], "photos": u.get("photos", [])} for u in users]
+    event["attendees_detail"] = attendees_detail
+    return event
+
+@events_router.post("/{event_id}/rsvp")
+async def rsvp_event(event_id: str, current_user: UserResponse = Depends(get_current_user_dependency), database=Depends(get_db)):
+    event = await database.events.find_one({"id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    attending = current_user.id in event.get("attendees", [])
+    if attending:
+        await database.events.update_one({"id": event_id}, {"$pull": {"attendees": current_user.id}})
+        return {"attending": False, "message": "Rimosso dalla lista partecipanti"}
+    max_a = event.get("max_attendees")
+    if max_a and len(event.get("attendees", [])) >= max_a:
+        raise HTTPException(status_code=400, detail="Evento al completo")
+    await database.events.update_one({"id": event_id}, {"$addToSet": {"attendees": current_user.id}})
+    return {"attending": True, "message": "Sei iscritto all'evento!"}
+
+@events_router.post("/{event_id}/invite")
+async def invite_to_event(
+    event_id: str,
+    body: EventInviteCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    event = await database.events.find_one({"id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    # verify they are matches
+    match_ids = body.match_ids
+    matches = await database.matches.find({
+        "$or": [
+            {"user1_id": current_user.id, "user2_id": {"$in": match_ids}},
+            {"user2_id": current_user.id, "user1_id": {"$in": match_ids}}
+        ]
+    }).to_list(len(match_ids))
+    valid_ids = set()
+    for m in matches:
+        other = m["user2_id"] if m["user1_id"] == current_user.id else m["user1_id"]
+        valid_ids.add(other)
+    sent = []
+    for uid in valid_ids:
+        existing = await database.event_invites.find_one({"event_id": event_id, "invitee_id": uid})
+        if not existing:
+            invite = {"id": str(uuid.uuid4()), "event_id": event_id, "inviter_id": current_user.id, "invitee_id": uid, "status": "pending", "created_at": datetime.utcnow()}
+            await database.event_invites.insert_one(invite)
+            sent.append(uid)
+    return {"sent": len(sent), "invited_ids": sent}
+
+@events_router.patch("/{event_id}/invite/{invite_id}")
+async def respond_invite(
+    event_id: str,
+    invite_id: str,
+    body: EventInviteStatusUpdate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    invite = await database.event_invites.find_one({"id": invite_id, "invitee_id": current_user.id})
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    if body.status not in ("accepted", "declined"):
+        raise HTTPException(status_code=400, detail="Status must be accepted or declined")
+    await database.event_invites.update_one({"id": invite_id}, {"$set": {"status": body.status}})
+    if body.status == "accepted":
+        await database.events.update_one({"id": event_id}, {"$addToSet": {"attendees": current_user.id}})
+    return {"status": body.status}
+
+@events_router.delete("/{event_id}")
+async def delete_event(event_id: str, current_user: UserResponse = Depends(get_current_user_dependency), database=Depends(get_db)):
+    event = await database.events.find_one({"id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event["created_by"] != current_user.id and current_user.role not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Non sei il creatore dell'evento")
+    await database.events.delete_one({"id": event_id})
+    await database.event_invites.delete_many({"event_id": event_id})
+    return {"message": "Evento eliminato"}
+
+fastapi_app.include_router(events_router)
+
+
 @fastapi_app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
