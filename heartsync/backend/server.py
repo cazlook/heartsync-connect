@@ -1439,6 +1439,35 @@ async def admin_stats(_admin=Depends(require_superadmin), database=Depends(get_d
 fastapi_app.include_router(admin_router)
 
 
+# ─── BOOTSTRAP SUPERADMIN (usa solo una volta) ────────────────────────────────
+
+BOOTSTRAP_SECRET = "heartsync_bootstrap_2026"
+
+@fastapi_app.post("/api/bootstrap/superadmin")
+async def bootstrap_superadmin(body: dict, database=Depends(get_db)):
+    secret = body.get("secret")
+    email = body.get("email")
+    if secret != BOOTSTRAP_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required")
+    user = await database.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail=f"No user with email '{email}'")
+    await database.users.update_one(
+        {"email": email},
+        {"$set": {"role": "superadmin", "verified": True, "premium": True}}
+    )
+    return {
+        "message": "Superadmin promoted successfully",
+        "user_id": user["id"],
+        "name": user["name"],
+        "email": email,
+        "role": "superadmin"
+    }
+
+
+
 @fastapi_app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
