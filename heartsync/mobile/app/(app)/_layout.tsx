@@ -1,6 +1,5 @@
 import { Tabs } from "expo-router";
-import { StyleSheet, View } from "react-native";
-import { Chrome as Home, MessageCircle, User, Users, CalendarDays } from "lucide-react-native";
+import { CalendarDays, Chrome as Home, User, Users } from "lucide-react-native";
 
 export default function AppLayout() {
   return (
@@ -49,10 +48,12 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
-      <Tabs.Screen
-        name="chat/[matchId]"
-        options={{ href: null }}
-      />
+      {/* Schermate nascoste dalla tab bar */}
+      <Tabs.Screen name="chat/[matchId]" options={{ href: null }} />
+      <Tabs.Screen name="events/index" options={{ href: null }} />
+      <Tabs.Screen name="events/[id]" options={{ href: null }} />
+      <Tabs.Screen name="events/create" options={{ href: null }} />
+      <Tabs.Screen name="events/invite" options={{ href: null }} />
     </Tabs>
   );
 }

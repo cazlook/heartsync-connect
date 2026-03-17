@@ -17,7 +17,6 @@ function RootNavigator() {
       <Stack.Screen name="(auth)" redirect={!!user} />
       <Stack.Screen name="(app)" redirect={!user} />
       <Stack.Screen name="heartrate-setup" />
-      <Stack.Screen name="onboarding" />
     </Stack>
   );
 }
