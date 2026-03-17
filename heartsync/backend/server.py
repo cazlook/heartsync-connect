@@ -249,6 +249,14 @@ async def get_discovery_profiles(
         })
     return result
 
+@api_router.delete("/discovery/swipes/reset")
+async def reset_my_swipes(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    result = await database.swipes.delete_many({"swiper_id": current_user.id})
+    return {"deleted": result.deleted_count, "message": "Swipe resettati, puoi rivedere tutti i profili"}
+
 @api_router.post("/discovery/swipe")
 async def swipe_profile(
     swipe: SwipeCreate,

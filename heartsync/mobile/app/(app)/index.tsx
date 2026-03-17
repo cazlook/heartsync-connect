@@ -522,10 +522,25 @@ export default function DiscoveryScreen() {
       {!loading && profiles.length === 0 && (
         <View style={styles.centered}>
           <Text style={styles.emptyEmoji}>💕</Text>
-          <Text style={styles.emptyTitle}>Nessun profilo</Text>
-          <Text style={styles.emptyText}>Torna più tardi per nuovi profili</Text>
+          <Text style={styles.emptyTitle}>Hai visto tutti!</Text>
+          <Text style={styles.emptyText}>Ricarica o resetta per rivedere i profili</Text>
           <TouchableOpacity style={styles.reloadBtn} onPress={fetchProfiles}>
             <Text style={styles.reloadBtnText}>Ricarica</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.reloadBtn, { backgroundColor: "#6b7280", marginTop: 10 }]}
+            onPress={async () => {
+              try {
+                await axios.delete(`${API_URL}/api/discovery/swipes/reset`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                fetchProfiles();
+              } catch {
+                Alert.alert("Errore", "Impossibile resettare gli swipe");
+              }
+            }}
+          >
+            <Text style={styles.reloadBtnText}>Resetta e ricomincia</Text>
           </TouchableOpacity>
         </View>
       )}

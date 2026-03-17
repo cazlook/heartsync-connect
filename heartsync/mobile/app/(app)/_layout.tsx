@@ -48,12 +48,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />
-      {/* Schermate nascoste dalla tab bar */}
-      <Tabs.Screen name="chat/[matchId]" options={{ href: null }} />
-      <Tabs.Screen name="events/index" options={{ href: null }} />
-      <Tabs.Screen name="events/[id]" options={{ href: null }} />
-      <Tabs.Screen name="events/create" options={{ href: null }} />
-      <Tabs.Screen name="events/invite" options={{ href: null }} />
+      <Tabs.Screen name="chat" options={{ href: null }} />
     </Tabs>
   );
 }
