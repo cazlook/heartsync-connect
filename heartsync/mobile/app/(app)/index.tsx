@@ -303,7 +303,7 @@ function MatchOverlay({ match, onClose, onChat }: { match: { name: string; id: s
   );
 }
 
-
+export default function DiscoveryScreen() {
   const { token } = useAuth();
   const { baselineBpm, addProfileReaction, calculateMatchBonus } = useHeartRate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
