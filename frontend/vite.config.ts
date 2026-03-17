@@ -8,9 +8,15 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 3000,
+    strictPort: true,
     hmr: {
       overlay: false,
     },
+    allowedHosts: [
+      "bpm-social.cluster-7.preview.emergentcf.cloud",
+      ".preview.emergentcf.cloud",
+      "localhost"
+    ],
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
