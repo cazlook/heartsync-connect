@@ -39,7 +39,7 @@ export default function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.logo}>💕</Text>
         <Text style={styles.title}>Crea account</Text>
-        <Text style={styles.subtitle}>Inizia il tuo viaggio con HeartSync</Text>
+        <Text style={styles.subtitle}>Inizia il tuo viaggio con SyncLove</Text>
 
         <View style={styles.form}>
           <Text style={styles.label}>Nome *</Text>

@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "HeartSync",
-    "slug": "heartsync",
+    "name": "SyncLove",
+    "slug": "synclove",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "heartsync",
+    "scheme": "synclove",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -14,12 +14,12 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.heartsync.app",
+      "bundleIdentifier": "com.synclove.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "HeartSync usa la fotocamera per misurare il tuo battito cardiaco e per caricare foto profilo.",
-        "NSMotionUsageDescription": "HeartSync usa il sensore di movimento per rilevare variazioni fisiche.",
-        "NSHealthShareUsageDescription": "HeartSync legge i tuoi dati cardiaci per trovare match più compatibili.",
-        "NSHealthUpdateUsageDescription": "HeartSync salva le reazioni cardiache per migliorare i tuoi match."
+        "NSCameraUsageDescription": "SyncLove usa la fotocamera per misurare il tuo battito cardiaco e per caricare foto profilo.",
+        "NSMotionUsageDescription": "SyncLove usa il sensore di movimento per rilevare variazioni fisiche.",
+        "NSHealthShareUsageDescription": "SyncLove legge i tuoi dati cardiaci per trovare match più compatibili.",
+        "NSHealthUpdateUsageDescription": "SyncLove salva le reazioni cardiache per migliorare i tuoi match."
       }
     },
     "android": {
@@ -27,7 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f43f5e"
       },
-      "package": "com.heartsync.app",
+      "package": "com.synclove.app",
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",

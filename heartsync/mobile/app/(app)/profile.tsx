@@ -98,7 +98,7 @@ export default function ProfileScreen() {
             <Text style={styles.bpmUnit}>BPM a riposo</Text>
           </View>
           <Text style={styles.heartDesc}>
-            HeartSync usa questo valore per misurare la tua reazione ai profili.
+            SyncLove usa questo valore per misurare la tua reazione ai profili.
             Più alto è il delta, più forte è l'attrazione!
           </Text>
           <TouchableOpacity style={styles.recalibrateBtn} onPress={() => router.push("/heartrate-setup")}>

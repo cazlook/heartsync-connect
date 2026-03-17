@@ -94,7 +94,7 @@ export default function HeartRateSetupScreen() {
         </View>
         <Text style={styles.title}>Misura il tuo battito</Text>
         <Text style={styles.subtitle}>
-          Per trovare il tuo match perfetto, HeartSync misura le tue reazioni cardiache.{"\n\n"}
+          Per trovare il tuo match perfetto, SyncLove misura le tue reazioni cardiache.{"\n\n"}
           Prima di tutto, abbiamo bisogno del tuo <Text style={styles.bold}>battito a riposo</Text>.
         </Text>
         <View style={styles.instructionBox}>
@@ -149,7 +149,7 @@ export default function HeartRateSetupScreen() {
         </Text>
       </View>
       <Text style={styles.explanation}>
-        Quando scorri i profili, HeartSync misurerà le variazioni rispetto a questo valore.
+        Quando scorri i profili, SyncLove misurerà le variazioni rispetto a questo valore.
         Un aumento del battito = attrazione reale. 💕
       </Text>
       <TouchableOpacity style={styles.startBtn} onPress={handleSave}>

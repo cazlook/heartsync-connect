@@ -35,7 +35,7 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.logo}>💕</Text>
-        <Text style={styles.title}>HeartSync</Text>
+        <Text style={styles.title}>SyncLove</Text>
         <Text style={styles.subtitle}>Il dating app che sente davvero</Text>
 
         <View style={styles.form}>
