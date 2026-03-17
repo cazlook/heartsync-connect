@@ -10,9 +10,11 @@ class UserBase(BaseModel):
     age: Optional[int] = None
     bio: Optional[str] = None
     city: Optional[str] = None
+    gender: Optional[str] = None
+    seeking: Optional[str] = None
     interests: List[str] = []
     photos: List[str] = []
-    
+
 class UserCreate(UserBase):
     password: str
 
@@ -25,12 +27,15 @@ class UserResponse(UserBase):
     created_at: datetime
     verified: bool = False
     premium: bool = False
-    
+    role: str = "user"
+
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
     bio: Optional[str] = None
     city: Optional[str] = None
+    gender: Optional[str] = None
+    seeking: Optional[str] = None
     interests: Optional[List[str]] = None
     photos: Optional[List[str]] = None
 
@@ -39,8 +44,22 @@ class User(UserResponse):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class TokenBlacklistDoc(BaseModel):
+    jti: str
+    user_id: str
+    blacklisted_at: datetime = Field(default_factory=datetime.utcnow)
+
+# Swipe Model
+class SwipeCreate(BaseModel):
+    profile_id: str
+    direction: str  # like or dislike
 
 # Profile Models
 class HeartRateReaction(BaseModel):
@@ -54,7 +73,7 @@ class HeartRateReading(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     bpm: int
-    context: str = "browsing"  # browsing, chatting, event
+    context: str = "browsing"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class HeartRateReadingCreate(BaseModel):
@@ -69,7 +88,7 @@ class EmotionalReactionDB(BaseModel):
     bpm_before: int
     bpm_peak: int
     bpm_delta: int
-    intensity: str  # low, medium, high
+    intensity: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class EmotionalReactionCreate(BaseModel):
@@ -103,14 +122,14 @@ class Match(BaseModel):
     user2_id: str
     cardiac_score: int
     matched_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
 # Chat Models
 class ChatMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     match_id: str
     sender_id: str
     message: str
-    message_type: str = "text"  # text, voice, gif, reaction
+    message_type: str = "text"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     read: bool = False
 
@@ -125,6 +144,8 @@ class NotificationType:
     NEW_EVENT = "new_event"
     MATCH_LIKED_YOU = "match_liked_you"
     EVENT_REMINDER = "event_reminder"
+    EVENT_INVITE = "event_invite"
+    EVENT_INVITE_ACCEPTED = "event_invite_accepted"
 
 class Notification(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -134,8 +155,8 @@ class Notification(BaseModel):
     message: str
     read: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    data: dict = {}  # Extra data like match_id, message_id, event_id
-    
+    data: dict = {}
+
 class NotificationCreate(BaseModel):
     user_id: str
     notification_type: str
@@ -146,7 +167,7 @@ class NotificationCreate(BaseModel):
 class FCMToken(BaseModel):
     user_id: str
     token: str
-    device_type: str = "web"  # web, ios, android
+    device_type: str = "web"
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # Location & Events Models
@@ -196,6 +217,21 @@ class EventResponse(BaseModel):
     image_url: Optional[str] = None
     distance_km: Optional[float] = None
     is_attending: bool = False
+    invited_matches: List[str] = []
+
+class EventInvite(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    event_id: str
+    inviter_id: str
+    invitee_id: str
+    status: str = "pending"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class EventInviteCreate(BaseModel):
+    match_ids: List[str]
+
+class EventInviteStatusUpdate(BaseModel):
+    status: str  # "accepted" | "declined"
 
 class UserLocationUpdate(BaseModel):
     latitude: float
@@ -208,11 +244,11 @@ class Story(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     media_url: str
-    media_type: str = "image"  # image, video
+    media_type: str = "image"
     caption: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     expires_at: datetime
-    views: List[str] = []  # user_ids who viewed
+    views: List[str] = []
 
 class StoryCreate(BaseModel):
     media_url: str
@@ -247,14 +283,12 @@ class ReferralCode(BaseModel):
 class ReferralRedemption(BaseModel):
     code: str
 
-# Premium & Security Models  
 class VerificationRequest(BaseModel):
     selfie_url: str
 
 class PremiumSubscription(BaseModel):
     user_id: str
-    plan_type: str  # monthly, yearly
+    plan_type: str
     start_date: datetime
     end_date: datetime
     active: bool = True
-
