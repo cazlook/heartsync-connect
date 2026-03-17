@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, StyleSheet, Dimensions, TouchableOpacity,
-  ActivityIndicator, Pressable, Animated, PanResponder, Alert, Image
+  ActivityIndicator, Pressable, Animated, PanResponder, Alert, Image, Easing
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import axios from "axios";
@@ -226,7 +226,84 @@ function SwipeCard({ profile, onSwipe, isTop, stackIndex, baselineBpm, onHeartRe
   );
 }
 
-export default function DiscoveryScreen() {
+const MATCH_PHRASES = [
+  "Il tuo cuore ha parlato. E anche il suo.",
+  "Due battiti che si sono trovati.",
+  "La scienza dice caso. Il cuore dice destino.",
+  "Il ritmo era giusto. La persona anche.",
+  "Qualcosa di raro è appena successo.",
+  "I cuori si riconoscono tra mille.",
+];
+
+function MatchOverlay({ match, onClose, onChat }: { match: { name: string; id: string }, onClose: () => void, onChat: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const heartScale1 = useRef(new Animated.Value(0)).current;
+  const heartScale2 = useRef(new Animated.Value(0)).current;
+  const titleSlide = useRef(new Animated.Value(40)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const phrase = useRef(MATCH_PHRASES[Math.floor(Math.random() * MATCH_PHRASES.length)]).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
+      ]),
+      Animated.delay(100),
+      Animated.parallel([
+        Animated.spring(heartScale1, { toValue: 1, friction: 4, tension: 60, useNativeDriver: true }),
+        Animated.spring(heartScale2, { toValue: 1, friction: 4, tension: 60, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(titleSlide, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Pulse hearts continuously
+    const pulse = () => {
+      Animated.sequence([
+        Animated.timing(heartScale1, { toValue: 1.15, duration: 600, useNativeDriver: true }),
+        Animated.timing(heartScale1, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]).start(({ finished }) => { if (finished) pulse(); });
+    };
+    const timer = setTimeout(pulse, 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Animated.View style={[styles.matchOverlay, { opacity: opacityAnim }]}>
+      <Animated.View style={[styles.matchCard, { transform: [{ scale: scaleAnim }] }]}>
+
+        <View style={styles.matchHeartsRow}>
+          <Animated.Text style={[styles.matchHeart, { transform: [{ scale: heartScale1 }, { rotate: "-15deg" }] }]}>❤️</Animated.Text>
+          <Animated.Text style={[styles.matchHeartBig, { transform: [{ scale: heartScale2 }] }]}>💗</Animated.Text>
+          <Animated.Text style={[styles.matchHeart, { transform: [{ scale: heartScale1 }, { rotate: "15deg" }] }]}>❤️</Animated.Text>
+        </View>
+
+        <Animated.View style={{ transform: [{ translateY: titleSlide }], opacity: titleOpacity }}>
+          <Text style={styles.matchTitle}>È un Match!</Text>
+          <Text style={styles.matchName}>{match.name} ha sentito lo stesso.</Text>
+          <Text style={styles.matchPhrase}>"{phrase}"</Text>
+        </Animated.View>
+
+        <View style={styles.matchDivider} />
+
+        <View style={styles.matchButtons}>
+          <TouchableOpacity style={styles.matchBtnSecondary} onPress={onClose}>
+            <Text style={styles.matchBtnSecondaryText}>Continua a scoprire</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.matchBtnPrimary} onPress={onChat}>
+            <Text style={styles.matchBtnPrimaryText}>💬  Scrivi ora</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+
   const { token } = useAuth();
   const { baselineBpm, addProfileReaction, calculateMatchBonus } = useHeartRate();
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -340,22 +417,11 @@ export default function DiscoveryScreen() {
       )}
 
       {match && (
-        <View style={styles.matchOverlay}>
-          <View style={styles.matchCard}>
-            <Text style={styles.matchEmoji}>💕</Text>
-            <Text style={styles.matchTitle}>È un Match!</Text>
-            <Text style={styles.matchSub}>Tu e <Text style={{ fontWeight: "800" }}>{match.name}</Text> vi siete piaciuti!</Text>
-            <View style={styles.matchButtons}>
-              <TouchableOpacity style={styles.matchBtnSecondary} onPress={() => setMatch(null)}>
-                <Text style={styles.matchBtnSecondaryText}>Continua</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.matchBtnPrimary}
-                onPress={() => { setMatch(null); router.push(`/(app)/chat/${match.id}`); }}>
-                <Text style={styles.matchBtnPrimaryText}>Scrivi</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <MatchOverlay
+          match={match}
+          onClose={() => setMatch(null)}
+          onChat={() => { setMatch(null); router.push(`/(app)/chat/${match.id}`); }}
+        />
       )}
     </View>
   );
@@ -407,14 +473,18 @@ const styles = StyleSheet.create({
   btnSuperText: { fontSize: 22, color: "#fff" },
   btnLike: { width: 72, height: 72, backgroundColor: "#f43f5e", shadowColor: "#f43f5e" },
   btnLikeText: { fontSize: 30, color: "#fff" },
-  matchOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center", zIndex: 100 },
-  matchCard: { backgroundColor: "#fff", borderRadius: 28, padding: 32, marginHorizontal: 24, alignItems: "center" },
-  matchEmoji: { fontSize: 56, marginBottom: 8 },
-  matchTitle: { fontSize: 28, fontWeight: "900", color: "#f43f5e", marginBottom: 8 },
-  matchSub: { fontSize: 15, color: "#374151", textAlign: "center", marginBottom: 24 },
-  matchButtons: { flexDirection: "row", gap: 12, width: "100%" },
-  matchBtnSecondary: { flex: 1, borderWidth: 2, borderColor: "#e5e7eb", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
-  matchBtnSecondaryText: { color: "#374151", fontWeight: "700" },
-  matchBtnPrimary: { flex: 1, backgroundColor: "#f43f5e", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
-  matchBtnPrimaryText: { color: "#fff", fontWeight: "700" },
+  matchOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(20,0,30,0.85)", alignItems: "center", justifyContent: "center", zIndex: 100 },
+  matchCard: { backgroundColor: "#fff", borderRadius: 32, padding: 32, marginHorizontal: 20, alignItems: "center", shadowColor: "#f43f5e", shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } },
+  matchHeartsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 20, gap: 8 },
+  matchHeart: { fontSize: 36 },
+  matchHeartBig: { fontSize: 56 },
+  matchTitle: { fontSize: 32, fontWeight: "900", color: "#f43f5e", textAlign: "center", marginBottom: 8 },
+  matchName: { fontSize: 17, fontWeight: "600", color: "#1a1a2e", textAlign: "center", marginBottom: 12 },
+  matchPhrase: { fontSize: 14, color: "#6b7280", textAlign: "center", fontStyle: "italic", lineHeight: 22, paddingHorizontal: 8, marginBottom: 4 },
+  matchDivider: { width: "80%", height: 1, backgroundColor: "#f3f4f6", marginVertical: 20 },
+  matchButtons: { flexDirection: "column", gap: 10, width: "100%" },
+  matchBtnSecondary: { borderWidth: 2, borderColor: "#e5e7eb", borderRadius: 16, paddingVertical: 14, alignItems: "center" },
+  matchBtnSecondaryText: { color: "#6b7280", fontWeight: "600", fontSize: 14 },
+  matchBtnPrimary: { backgroundColor: "#f43f5e", borderRadius: 16, paddingVertical: 16, alignItems: "center", shadowColor: "#f43f5e", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  matchBtnPrimaryText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 });
