@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "HeartSync",
+    "slug": "heartsync",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "heartsync",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f43f5e"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.heartsync.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "HeartSync usa la fotocamera per misurare il tuo battito cardiaco e per caricare foto profilo.",
+        "NSMotionUsageDescription": "HeartSync usa il sensore di movimento per rilevare variazioni fisiche.",
+        "NSHealthShareUsageDescription": "HeartSync legge i tuoi dati cardiaci per trovare match più compatibili.",
+        "NSHealthUpdateUsageDescription": "HeartSync salva le reazioni cardiache per migliorare i tuoi match."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f43f5e"
+      },
+      "package": "com.heartsync.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "BODY_SENSORS",
+        "ACTIVITY_RECOGNITION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      "expo-image-picker",
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "fonts": []
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

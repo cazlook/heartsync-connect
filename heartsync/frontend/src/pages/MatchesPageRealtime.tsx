@@ -1,124 +1,104 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { MessageCircle, Heart, Plus } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Heart, MessageCircle, Star, Flame, MapPin } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { Button } from "../components/ui/button";
 import axios from "axios";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://bpm-social.preview.emergentagent.com';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://bpm-social.preview.emergentagent.com";
 
-interface Match {
-  id: string;
-  user1_id: string;
-  user2_id: string;
-  cardiac_score: number;
-  matched_at: string;
+interface OtherUser { id: string; name: string; age?: number; photos: string[]; verified: boolean; city?: string; }
+interface Match { id: string; user1_id: string; user2_id: string; cardiac_score: number; matched_at: string; other_user: OtherUser; last_message?: string; }
+
+const GRADIENTS = ["from-rose-400 to-pink-600","from-violet-400 to-purple-600","from-sky-400 to-blue-600","from-amber-400 to-orange-600","from-teal-400 to-emerald-600"];
+
+function MatchSkeleton() {
+  return (
+    <div className="flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm animate-pulse">
+      <div className="w-16 h-16 rounded-full bg-gray-200 shrink-0" />
+      <div className="flex-1 flex flex-col gap-2">
+        <div className="w-32 h-4 bg-gray-200 rounded" />
+        <div className="w-48 h-3 bg-gray-200 rounded" />
+      </div>
+      <div className="w-10 h-10 rounded-full bg-gray-200" />
+    </div>
+  );
 }
 
-export default function MatchesPageRealtime() {
-  const navigate = useNavigate();
-  const { token, user } = useAuth();
+export default function MatchesPage() {
+  const { token } = useAuth(); const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) return;
-    
-    const loadMatches = async () => {
+    const fetch = async () => {
       try {
-        const response = await axios.get(`${BACKEND_URL}/api/chat/matches`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setMatches(response.data);
-      } catch (error) {
-        console.error('Error loading matches:', error);
-        toast.error('Errore nel caricamento dei match');
-      } finally {
-        setLoading(false);
-      }
+        const { data } = await axios.get(`${BACKEND_URL}/api/chat/matches`, { headers: { Authorization: `Bearer ${token}` } });
+        setMatches(data);
+      } catch { /* ignore */ }
+      finally { setLoading(false); }
     };
-    
-    loadMatches();
+    fetch();
   }, [token]);
 
-  const createTestMatch = async () => {
-    try {
-      const response = await axios.post(
-        `${BACKEND_URL}/api/chat/create-test-match`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setMatches(prev => [...prev, response.data]);
-      toast.success('Match di test creato!');
-    } catch (error) {
-      console.error('Error creating test match:', error);
-      toast.error('Errore nella creazione del match');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center pb-20">
-        <div className="animate-pulse text-primary">Caricamento match...</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h1 className="font-display text-xl">I tuoi Match</h1>
-        <Button 
-          onClick={createTestMatch}
-          size="sm"
-          variant="outline"
-          className="gap-2"
-        >
-          <Plus size={14} />
-          Test Match
-        </Button>
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="px-4 pt-6 pb-2">
+        <h1 className="text-2xl font-bold text-gray-900">Match</h1>
+        <p className="text-sm text-gray-500">{loading ? "Caricamento..." : `${matches.length} connessioni cardiache`}</p>
       </div>
 
-      {/* Matches List */}
-      <div className="px-4 space-y-3 mt-4">
-        {matches.length === 0 && (
-          <div className="text-center py-12">
-            <Heart size={48} className="mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-sm">
-              Nessun match ancora
-            </p>
-            <p className="text-muted-foreground text-xs mt-2">
-              Clicca su "Test Match" per creare un match di prova
-            </p>
+      <div className="px-4 flex flex-col gap-3 mt-2">
+        {loading && Array.from({length: 4}).map((_, i) => <MatchSkeleton key={i} />)}
+
+        {!loading && matches.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+            <div className="w-20 h-20 rounded-full bg-rose-100 flex items-center justify-center">
+              <Heart className="w-10 h-10 text-rose-400" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Nessun match ancora</h3>
+            <p className="text-gray-500 text-sm">Vai su Scopri e inizia a fare like!</p>
+            <Button onClick={() => navigate("/")} className="bg-rose-500 hover:bg-rose-600 text-white">Scopri profili</Button>
           </div>
         )}
 
-        {matches.map((match, index) => (
-          <motion.div
-            key={match.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            onClick={() => navigate(`/chat/${match.id}`)}
-            className="glass-panel p-4 flex items-center gap-3 cursor-pointer hover:bg-muted/30 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-              <Heart size={20} className="text-primary fill-primary" />
+        {!loading && matches.map((match, i) => {
+          const other = match.other_user;
+          const gradient = GRADIENTS[i % GRADIENTS.length];
+          const initials = other?.name?.charAt(0).toUpperCase() || "?";
+          const timeAgo = match.matched_at ? new Date(match.matched_at).toLocaleDateString("it-IT", { day: "numeric", month: "short" }) : "";
+
+          return (
+            <div key={match.id}
+              onClick={() => navigate(`/chat/${match.id}`)}
+              className="flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm cursor-pointer hover:shadow-md transition-shadow active:scale-98">
+              <div className="relative shrink-0">
+                <div className={`w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                  {other?.photos?.[0]
+                    ? <img src={other.photos[0]} alt={other.name} className="w-full h-full object-cover" />
+                    : <span className="text-white text-2xl font-bold">{initials}</span>
+                  }
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center border-2 border-white">
+                  <span className="text-xs">{match.cardiac_score}%</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold text-gray-900 truncate">{other?.name || "Utente"}</span>
+                  {other?.verified && <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 shrink-0" />}
+                </div>
+                <p className="text-sm text-gray-500 truncate">
+                  {match.last_message || (other?.city ? `📍 ${other.city}` : "Inizia la conversazione!")}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{timeAgo}</p>
+              </div>
+              <button className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0 hover:bg-rose-100 transition-colors">
+                <MessageCircle className="w-5 h-5 text-rose-500" />
+              </button>
             </div>
-            
-            <div className="flex-1">
-              <h3 className="font-display text-sm">Match</h3>
-              <p className="text-xs text-muted-foreground">
-                Score cardiaco: {match.cardiac_score}
-              </p>
-            </div>
-            
-            <MessageCircle size={18} className="text-muted-foreground" />
-          </motion.div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

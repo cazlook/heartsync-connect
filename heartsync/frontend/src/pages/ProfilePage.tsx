@@ -1,223 +1,197 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Camera, Watch, ChevronDown, Award } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+﻿import { useState, useRef } from "react";
+import { Camera, MapPin, Save, LogOut, Star, Flame, Award, Edit3 } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { toast } from "sonner";
 import axios from "axios";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://bpm-social.preview.emergentagent.com';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://bpm-social.preview.emergentagent.com";
 
-const ALL_INTERESTS = [
-  "Musica", "Viaggi", "Sport", "Arte", "Cinema", "Cucina",
-  "Fotografia", "Lettura", "Yoga", "Tecnologia", "Natura", "Danza",
-];
+const INTERESTS_LIST = ["Musica","Viaggi","Cucina","Sport","Arte","Cinema","Lettura","Fotografia","Danza","Yoga","Escursionismo","Vino","Gaming","Meditazione","Fitness","Natura"];
 
-interface Badge {
-  id: string;
-  badge_type: string;
-  title: string;
-  description: string;
-  icon: string;
-  earned_at: string;
+function resizeImageBase64(file: File, maxSize = 800): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let w = img.width, h = img.height;
+        if (w > maxSize || h > maxSize) {
+          if (w > h) { h = Math.round((h * maxSize) / w); w = maxSize; }
+          else { w = Math.round((w * maxSize) / h); h = maxSize; }
+        }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function ProfilePage() {
-  const { token } = useAuth();
-  const [name, setName] = useState("Sofia");
-  const [age, setAge] = useState("27");
-  const [city, setCity] = useState("Milano");
-  const [bio, setBio] = useState("Amante della fotografia e dei tramonti. Cerco qualcuno con cui condividere avventure autentiche.");
-  const [gender, setGender] = useState("Donna");
-  const [seeking, setSeeking] = useState("Uomini");
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(["Viaggi", "Arte", "Fotografia"]);
-  const [watchConnected, setWatchConnected] = useState(true);
-  const [badges, setBadges] = useState<Badge[]>([]);
+  const { user, token, setUser, logout } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (token) {
-      loadBadges();
-    }
-  }, [token]);
+  const [name, setName] = useState(user?.name || "");
+  const [bio, setBio] = useState(user?.bio || "");
+  const [city, setCity] = useState(user?.city || "");
+  const [age, setAge] = useState(user?.age?.toString() || "");
+  const [interests, setInterests] = useState<string[]>(user?.interests || []);
+  const [photo, setPhoto] = useState<string | null>(user?.photos?.[0] || null);
 
-  const loadBadges = async () => {
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const response = await axios.get(`${BACKEND_URL}/api/badges`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setBadges(response.data);
-    } catch (error) {
-      console.error('Error loading badges:', error);
-    }
+      const b64 = await resizeImageBase64(file);
+      setPhoto(b64);
+      toast.success("Foto pronta. Salva il profilo per applicarla.");
+    } catch { toast.error("Errore nel caricamento della foto"); }
   };
 
-  const toggleInterest = (interest: string) => {
-    setSelectedInterests(prev =>
-      prev.includes(interest)
-        ? prev.filter(i => i !== interest)
-        : prev.length < 6 ? [...prev, interest] : prev
-    );
+  const toggleInterest = (i: string) =>
+    setInterests(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const photos = photo ? [photo] : (user?.photos || []);
+      const payload = { name, bio, city, age: age ? parseInt(age) : undefined, interests, photos };
+      const { data } = await axios.put(`${BACKEND_URL}/api/auth/profile`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(data);
+      setEditing(false);
+      toast.success("Profilo salvato!");
+    } catch { toast.error("Errore nel salvataggio"); }
+    finally { setSaving(false); }
   };
+
+  const initials = (user?.name || "U").charAt(0).toUpperCase();
 
   return (
-    <div className="min-h-screen pb-24">
-      <div className="px-4 pt-6 pb-4">
-        <h1 className="font-display text-2xl mb-6">Modifica Profilo</h1>
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <div className="bg-white shadow-sm px-4 pt-6 pb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Profilo</h1>
+        {!editing ? (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)} className="gap-1">
+            <Edit3 className="w-4 h-4" /> Modifica
+          </Button>
+        ) : (
+          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-rose-500 hover:bg-rose-600 text-white gap-1">
+            <Save className="w-4 h-4" /> {saving ? "..." : "Salva"}
+          </Button>
+        )}
+      </div>
 
-        {/* Avatar */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex justify-center mb-8"
-        >
+      <div className="px-4 py-6 flex flex-col gap-5">
+        <div className="flex items-center gap-4">
           <div className="relative">
-            <div className="w-28 h-28 rounded-3xl overflow-hidden bg-muted">
-              <img
-                src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&q=80"
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center">
+              {photo
+                ? <img src={photo} alt="profile" className="w-full h-full object-cover" />
+                : <span className="text-white text-3xl font-bold">{initials}</span>
+              }
             </div>
-            <button className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-              <Camera size={14} className="text-primary-foreground" />
-            </button>
+            {editing && (
+              <button onClick={() => fileRef.current?.click()}
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center shadow-md border-2 border-white">
+                <Camera className="w-4 h-4 text-white" />
+              </button>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
           </div>
-        </motion.div>
-
-        {/* Name & Age */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Nome</label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Età</label>
-            <input
-              value={age}
-              onChange={e => setAge(e.target.value)}
-              type="number"
-              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+          <div className="flex-1">
+            {editing ? (
+              <Input value={name} onChange={e => setName(e.target.value)} className="font-bold text-lg mb-1" placeholder="Il tuo nome" />
+            ) : (
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                {user?.name}
+                {user?.verified && <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />}
+                {user?.premium && <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />}
+              </h2>
+            )}
+            <p className="text-sm text-gray-500">{user?.email}</p>
           </div>
         </div>
 
-        {/* City */}
-        <div className="mb-4">
-          <label className="text-xs text-muted-foreground mb-1.5 block">Città</label>
-          <input
-            value={city}
-            onChange={e => setCity(e.target.value)}
-            className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-
-        {/* Bio */}
-        <div className="mb-4">
-          <label className="text-xs text-muted-foreground mb-1.5 block">Bio</label>
-          <textarea
-            value={bio}
-            onChange={e => setBio(e.target.value)}
-            rows={3}
-            maxLength={200}
-            className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-
-        {/* Gender & Seeking */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Genere</label>
-            <div className="relative">
-              <select
-                value={gender}
-                onChange={e => setGender(e.target.value)}
-                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option>Donna</option>
-                <option>Uomo</option>
-                <option>Non-binario</option>
-                <option>Altro</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+          <h3 className="font-semibold text-gray-800">Info</h3>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-gray-500 mb-1 block">Età</label>
+              {editing
+                ? <Input type="number" value={age} onChange={e => setAge(e.target.value)} placeholder="Età" className="h-9" />
+                : <p className="text-gray-800 text-sm">{user?.age || "—"}</p>
+              }
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-gray-500 mb-1 block flex items-center gap-1"><MapPin className="w-3 h-3" /> Città</label>
+              {editing
+                ? <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Città" className="h-9" />
+                : <p className="text-gray-800 text-sm">{user?.city || "—"}</p>
+              }
             </div>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Cerco</label>
-            <div className="relative">
-              <select
-                value={seeking}
-                onChange={e => setSeeking(e.target.value)}
-                className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option>Uomini</option>
-                <option>Donne</option>
-                <option>Tutti</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            </div>
+            <label className="text-xs text-gray-500 mb-1 block">Bio</label>
+            {editing
+              ? <Textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Raccontati..." rows={3} className="resize-none text-sm" maxLength={300} />
+              : <p className="text-gray-800 text-sm">{user?.bio || "Nessuna bio"}</p>
+            }
           </div>
         </div>
 
-        {/* Interests */}
-        <div className="mb-6">
-          <label className="text-xs text-muted-foreground mb-2 block">Interessi</label>
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-semibold text-gray-800 mb-3">Interessi</h3>
           <div className="flex flex-wrap gap-2">
-            {ALL_INTERESTS.map(interest => {
-              const selected = selectedInterests.includes(interest);
-              return (
-                <button
-                  key={interest}
-                  onClick={() => toggleInterest(interest)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    selected
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {interest}{selected ? " ×" : ""}
-                </button>
-              );
-            })}
+            {editing
+              ? INTERESTS_LIST.map(i => (
+                  <button key={i} onClick={() => toggleInterest(i)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${interests.includes(i) ? "bg-rose-500 text-white border-rose-500" : "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                    {i}
+                  </button>
+                ))
+              : interests.length > 0
+                ? interests.map(i => (
+                    <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">{i}</span>
+                  ))
+                : <p className="text-sm text-gray-400">Nessun interesse selezionato</p>
+            }
           </div>
         </div>
 
-        {/* Smartwatch */}
-        <div className="glass-panel p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Watch size={16} className="text-secondary" />
-            <h3 className="text-sm font-semibold">Smartwatch</h3>
-          </div>
-          <div className="mb-3">
-            <div className="relative">
-              <select className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-primary">
-                <option>Samsung Galaxy Watch</option>
-                <option>Apple Watch</option>
-                <option>Fitbit Sense</option>
-                <option>Garmin Venu</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><Award className="w-4 h-4 text-rose-500" /> Badge</h3>
+          {user?.verified && (
+            <div className="flex items-center gap-2 bg-yellow-50 rounded-xl p-3 mb-2">
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+              <span className="text-sm font-medium text-yellow-800">Profilo verificato</span>
             </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Connesso</span>
-            <button
-              onClick={() => setWatchConnected(!watchConnected)}
-              className={`w-11 h-6 rounded-full transition-colors ${watchConnected ? "bg-primary" : "bg-muted"}`}
-            >
-              <div className={`w-5 h-5 rounded-full bg-foreground transition-transform ${watchConnected ? "translate-x-5.5" : "translate-x-0.5"}`} />
-            </button>
-          </div>
+          )}
+          {user?.premium && (
+            <div className="flex items-center gap-2 bg-orange-50 rounded-xl p-3">
+              <Flame className="w-5 h-5 text-orange-500 fill-orange-500" />
+              <span className="text-sm font-medium text-orange-800">Premium attivo</span>
+            </div>
+          )}
+          {!user?.verified && !user?.premium && (
+            <p className="text-sm text-gray-400">Nessun badge ancora</p>
+          )}
         </div>
 
-        {/* Save */}
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          className="w-full mt-6 bg-primary text-primary-foreground py-3.5 rounded-2xl font-semibold text-sm"
-        >
-          Salva modifiche
-        </motion.button>
+        <Button variant="outline" onClick={logout} className="w-full text-red-600 border-red-200 hover:bg-red-50 gap-2">
+          <LogOut className="w-4 h-4" /> Logout
+        </Button>
       </div>
     </div>
   );

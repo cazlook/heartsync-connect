@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -16,14 +16,15 @@ import SettingsPage from "@/pages/SettingsPage";
 import HomePage from "@/pages/HomePage";
 import ProfilePage from "@/pages/ProfilePage";
 import AuthPage from "@/pages/AuthPage";
+import OnboardingPage from "@/pages/OnboardingPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Protected route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  
+  const location = useLocation();
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -31,17 +32,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-  
+
+  if (!user) return <Navigate to="/auth" replace />;
+
+  const needsOnboarding = !user.photos?.length && location.pathname !== "/onboarding";
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
+
   return <>{children}</>;
 };
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -49,11 +51,14 @@ const AppRoutes = () => {
       </div>
     );
   }
-  
+
+  const showNav = user && !window.location.pathname.includes("/onboarding");
+
   return (
     <div className="max-w-lg mx-auto min-h-screen relative">
       <Routes>
         <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+        <Route path="/onboarding" element={user ? <OnboardingPage /> : <Navigate to="/auth" replace />} />
         <Route path="/" element={<ProtectedRoute><DiscoveryPage /></ProtectedRoute>} />
         <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/events" element={<ProtectedRoute><EventsPageRealtime /></ProtectedRoute>} />
@@ -65,7 +70,7 @@ const AppRoutes = () => {
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-      {user && <BottomNav />}
+      {user && !window.location.pathname.includes("/onboarding") && <BottomNav />}
     </div>
   );
 };

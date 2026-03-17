@@ -10,6 +10,8 @@ interface User {
   age?: number;
   bio?: string;
   city?: string;
+  gender?: string;
+  seeking?: string;
   interests: string[];
   photos: string[];
   verified: boolean;
@@ -24,6 +26,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  setUser: (user: User) => void;
 }
 
 interface RegisterData {
@@ -134,7 +137,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfile, setUser }}>
       {children}
     </AuthContext.Provider>
   );
