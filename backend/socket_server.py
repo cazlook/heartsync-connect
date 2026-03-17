@@ -5,11 +5,19 @@ from auth import firebase_auth
 from datetime import datetime
 import uuid
 
+
+# CORS configuration: dynamic based on environment
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development')
+if ENVIRONMENT == 'production':
+    CORS_ORIGINS = [os.environ.get('FRONTEND_URL', 'https://yourproductiondomain.com')]
+else:
+    # Development: allow localhost
+    CORS_ORIGINS = ['http://localhost:5173', 'http://localhost:3000']
+
 # Create Socket.IO server
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    logger=True,
+    cors_allowed_origins=CORS_ORIGINS,    logger=True,
     engineio_logger=True
 )
 
