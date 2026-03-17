@@ -1,0 +1,15 @@
+[services]
+  [services.backend]
+    source = "backend"
+    [services.backend.build]
+      builder = "NIXPACKS"
+    [services.backend.deploy]
+      startCommand = "uvicorn server:app --host 0.0.0.0 --port $PORT"
+
+  [services.frontend]
+    source = "frontend"
+    [services.frontend.build]
+      builder = "NIXPACKS"
+      buildCommand = "npm install && npm run build"
+    [services.frontend.deploy]
+      startCommand = "npm start"
