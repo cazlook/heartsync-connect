@@ -1,207 +1,151 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Heart, ChevronLeft, ChevronRight } from "lucide-react";
-import { mockProfiles, type UserProfile, type EmotionalReaction } from "@/lib/mock-data";
-import { useHeartbeatSimulator } from "@/lib/heartbeat-simulator";
-import HeartRateDisplay from "@/components/HeartRateDisplay";
-import { useAuth } from "@/contexts/AuthContext";
-import axios from "axios";
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { useBiometric } from '@/hooks/useBiometric';
 
-const BACKEND_URL = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+interface Profile {
+  id: string;
+  full_name: string;
+  age?: number;
+  bio?: string;
+  avatar_url?: string;
+  location?: string;
+}
 
 export default function DiscoveryPage() {
-  const { token } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [reactions, setReactions] = useState<EmotionalReaction[]>([]);
-  const [direction, setDirection] = useState(0);
-  const { bpm, isReacting, reactionIntensity, triggerRandomReaction } = useHeartbeatSimulator();
-  const lastBpmRef = useRef(72);
-  const lastSavedBpmRef = useRef(Date.now());
+  const [loading, setLoading] = useState(true);
+  const [reactionToast, setReactionToast] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const profile = mockProfiles[currentIndex];
+  const currentProfile = profiles[currentIndex] ?? null;
+  const { currentBpm, reaction, isMonitoring, zScore } = useBiometric(currentProfile?.id ?? null);
 
-  // Save heart rate reading periodically
-  useEffect(() => {
-    if (!token) return;
-    
-    const saveHeartRate = async () => {
-      // Save every 5 seconds
-      const now = Date.now();
-      if (now - lastSavedBpmRef.current > 5000) {
-        try {
-          await axios.post(
-            `${BACKEND_URL}/api/biometrics/heartrate`,
-            { bpm, context: 'browsing' },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          lastSavedBpmRef.current = now;
-        } catch (error) {
-          // Silently fail
-        }
-      }
-    };
-    
-    const interval = setInterval(saveHeartRate, 5000);
-    return () => clearInterval(interval);
-  }, [bpm, token]);
+  useEffect(() => { fetchProfiles(); }, []);
 
-  const goNext = () => {
-    if (currentIndex < mockProfiles.length - 1) {
-      setDirection(1);
-      setCurrentIndex((i) => i + 1);
-    }
-  };
-
-  const goPrev = () => {
-    if (currentIndex > 0) {
-      setDirection(-1);
-      setCurrentIndex((i) => i - 1);
-    }
+  const fetchProfiles = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, age, bio, avatar_url, location')
+      .neq('id', user.id)
+      .limit(50);
+    setProfiles(data ?? []);
+    setLoading(false);
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => triggerRandomReaction(), 1500 + Math.random() * 2000);
-    return () => clearTimeout(timer);
-  }, [currentIndex, triggerRandomReaction]);
-
-  useEffect(() => {
-    if (isReacting && token) {
-      // Save reaction to backend
-      const saveReaction = async () => {
-        try {
-          await axios.post(
-            `${BACKEND_URL}/api/biometrics/reaction`,
-            {
-              profile_id: profile.id,
-              profile_name: profile.name,
-              bpm_before: lastBpmRef.current,
-              bpm_peak: bpm,
-              bpm_delta: bpm - lastBpmRef.current,
-              intensity: reactionIntensity
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-        } catch (error) {
-          // Silently fail
-        }
-      };
-      
-      saveReaction();
-      lastBpmRef.current = bpm;
-      
-      setReactions((prev) => {
-        if (prev.find((r) => r.profileId === profile.id)) return prev;
-        return [...prev, {
-          profileId: profile.id,
-          bpmDelta: bpm - 72,
-          timestamp: new Date().toISOString(),
-          intensity: reactionIntensity,
-        }];
-      });
+    if (reaction?.reacted) {
+      setReactionToast('Il tuo cuore ha reagito 💓');
+      setTimeout(() => setReactionToast(null), 4000);
     }
-  }, [isReacting, profile.id, bpm, reactionIntensity, token]);
+  }, [reaction]);
 
-  const hasReacted = reactions.some((r) => r.profileId === profile.id);
+  const goNext = () => { if (currentIndex < profiles.length - 1) setCurrentIndex(i => i + 1); };
+  const goPrev = () => { if (currentIndex > 0) setCurrentIndex(i => i - 1); };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.deltaY > 30) goNext();
+    else if (e.deltaY < -30) goPrev();
+  };
+
+  const touchStartY = useRef(0);
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartY.current = e.touches[0].clientY; };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const delta = touchStartY.current - e.changedTouches[0].clientY;
+    if (delta > 50) goNext();
+    else if (delta < -50) goPrev();
+  };
+
+  const bpmColor = () => {
+    if (!currentBpm) return 'text-slate-400';
+    if (zScore >= 2) return 'text-rose-400 animate-pulse';
+    if (zScore >= 1) return 'text-orange-400';
+    return 'text-green-400';
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-white text-center"><div className="text-4xl mb-4 animate-pulse">❤️</div><p>Caricamento...</p></div>
+    </div>
+  );
+
+  if (profiles.length === 0) return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+      <div className="text-white text-center"><div className="text-5xl mb-4">💔</div><h2 className="text-xl font-bold">Nessun profilo disponibile</h2></div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h1 className="font-display text-xl">Scopri</h1>
-        <HeartRateDisplay bpm={bpm} isReacting={isReacting} intensity={reactionIntensity} compact />
-      </div>
-
-      {/* Profile Card */}
-      <div className="px-4 relative">
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={profile.id}
-            custom={direction}
-            initial={{ opacity: 0, x: direction * 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -direction * 100 }}
-            transition={{ type: "spring", stiffness: 200, damping: 25 }}
-            className="relative rounded-2xl overflow-hidden aspect-[3/4]"
-          >
-            <img
-              src={profile.photo}
-              alt={profile.name}
-              className="w-full h-full object-cover"
-            />
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
-
-            {/* Cardiac glow edges when reacting */}
-            {isReacting && (
-              <motion.div
-                className="absolute inset-0 pointer-events-none"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                style={{
-                  boxShadow: `inset 0 0 60px hsl(var(--cardiac-red) / ${
-                    reactionIntensity === "high" ? 0.4 : reactionIntensity === "medium" ? 0.25 : 0.15
-                  })`,
-                }}
-              />
-            )}
-
-            {/* Profile Info */}
-            <div className="absolute bottom-0 left-0 right-0 p-5">
-              <div className="flex items-end justify-between">
-                <div>
-                  <h2 className="font-display text-3xl text-foreground">
-                    {profile.name}, {profile.age}
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">{profile.city}</p>
-                  <p className="text-sm text-foreground/80 mt-2 line-clamp-2">{profile.bio}</p>
-                  <div className="flex gap-1.5 mt-3 flex-wrap">
-                    {profile.interests.map((interest) => (
-                      <span key={interest} className="glass-panel text-[11px] px-2.5 py-1 text-muted-foreground">
-                        {interest}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                {hasReacted && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="glass-panel p-2 cardiac-glow"
-                  >
-                    <Heart size={20} className="text-primary fill-primary animate-heartbeat" />
-                  </motion.div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Navigation */}
-        <div className="flex justify-between mt-4">
-          <button
-            onClick={goPrev}
-            disabled={currentIndex === 0}
-            className="glass-panel p-3 disabled:opacity-30"
-          >
-            <ChevronLeft size={20} className="text-muted-foreground" />
-          </button>
-
-          {/* BPM Display */}
-          <HeartRateDisplay bpm={bpm} isReacting={isReacting} intensity={reactionIntensity} />
-
-          <button
-            onClick={goNext}
-            disabled={currentIndex === mockProfiles.length - 1}
-            className="glass-panel p-3 disabled:opacity-30"
-          >
-            <ChevronRight size={20} className="text-muted-foreground" />
-          </button>
+    <div
+      className="min-h-screen bg-slate-900 overflow-hidden relative select-none"
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      ref={containerRef}
+    >
+      {reactionToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-rose-600 text-white px-6 py-3 rounded-full text-sm font-medium shadow-lg animate-bounce">
+          {reactionToast}
         </div>
+      )}
 
-        {/* Counter */}
-        <p className="text-center text-muted-foreground text-xs mt-3 font-mono-data">
-          {currentIndex + 1} / {mockProfiles.length} profili · {reactions.length} reazioni registrate
-        </p>
+      {isMonitoring && currentBpm && (
+        <div className="fixed top-6 right-4 z-40 bg-slate-800/90 backdrop-blur rounded-2xl px-4 py-2 flex items-center gap-2">
+          <span className="text-rose-500">❤</span>
+          <span className={`text-sm font-bold ${bpmColor()}`}>{currentBpm} BPM</span>
+        </div>
+      )}
+
+      {currentProfile && (
+        <div className="h-screen flex flex-col">
+          <div className="flex-1 relative overflow-hidden">
+            {currentProfile.avatar_url ? (
+              <img src={currentProfile.avatar_url} alt={currentProfile.full_name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center">
+                <span className="text-8xl">👤</span>
+              </div>
+            )}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 pb-24">
+              <h2 className="text-white text-2xl font-bold">
+                {currentProfile.full_name}{currentProfile.age ? `, ${currentProfile.age}` : ''}
+              </h2>
+              {currentProfile.location && <p className="text-slate-300 text-sm mt-1">📍 {currentProfile.location}</p>}
+              {currentProfile.bio && <p className="text-slate-200 text-sm mt-2 line-clamp-2">{currentProfile.bio}</p>}
+            </div>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1">
+              {profiles.slice(0, 20).map((_, i) => (
+                <div key={i} className={`h-1 rounded-full transition-all ${i === currentIndex ? 'w-6 bg-white' : 'w-2 bg-white/40'}`} />
+              ))}
+            </div>
+          </div>
+          <div className="bg-slate-900 p-4 flex justify-center">
+            <button
+              onClick={() => navigate(`/profile/${currentProfile.id}`)}
+              className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-3 rounded-2xl text-sm font-medium transition-all"
+            >
+              Vedi profilo completo
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button onClick={goPrev} disabled={currentIndex === 0}
+        className="fixed left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 backdrop-blur text-white p-3 rounded-full disabled:opacity-20 transition-all">
+        ▲
+      </button>
+      <button onClick={goNext} disabled={currentIndex >= profiles.length - 1}
+        className="fixed right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 backdrop-blur text-white p-3 rounded-full disabled:opacity-20 transition-all">
+        ▼
+      </button>
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 text-slate-500 text-xs">
+        {currentIndex + 1} / {profiles.length} • Scorri per esplorare
       </div>
     </div>
   );

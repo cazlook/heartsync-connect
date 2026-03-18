@@ -972,6 +972,92 @@ async def get_user_preferences(
         "dark_mode": True
     })
 
+
+# ============================================================
+# BIOMETRIC REACTIONS & MATCH ENDPOINTS
+# ============================================================
+
+class BiometricReactionCreate(BaseModel):
+    target_profile_id: str
+    z_score: float
+    peak_bpm: int
+
+
+@api_router.post("/biometric/reaction")
+async def save_biometric_reaction(
+    reaction: BiometricReactionCreate,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    """Salva una reazione biometrica e verifica se creare un match mutuo."""
+    user_id = str(current_user.id)
+    target_id = reaction.target_profile_id
+
+    # Salva la reazione
+    await database.biometric_reactions.insert_one({
+        "user_id": user_id,
+        "target_profile_id": target_id,
+        "z_score": reaction.z_score,
+        "peak_bpm": reaction.peak_bpm,
+        "reacted_at": datetime.utcnow().isoformat(),
+    })
+
+    # Controlla se anche l'altro utente ha reagito a questo utente
+    mutual = await database.biometric_reactions.find_one({
+        "user_id": target_id,
+        "target_profile_id": user_id,
+    })
+
+    match_created = False
+    if mutual:
+        # Verifica che non esista gia' un match
+        existing = await database.matches.find_one({
+            "$or": [
+                {"user1_id": user_id, "user2_id": target_id},
+                {"user1_id": target_id, "user2_id": user_id},
+            ]
+        })
+        if not existing:
+            # Calcola cardiac_score combinato (media z_score * 33, clamp 0-100)
+            combined_score = min(100, int(((reaction.z_score + mutual.get("z_score", 2.0)) / 2) * 33))
+            match_doc = {
+                "user1_id": user_id,
+                "user2_id": target_id,
+                "cardiac_score": combined_score,
+                "matched_at": datetime.utcnow().isoformat(),
+                "is_biometric": True,
+            }
+            await database.matches.insert_one(match_doc)
+            match_created = True
+
+    return {"success": True, "match_created": match_created}
+
+
+@api_router.post("/biometric/baseline")
+async def save_biometric_baseline(
+    baseline: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    """Salva la baseline biometrica dell'utente nel profilo."""
+    await database.users.update_one(
+        {"id": str(current_user.id)},
+        {"$set": {"biometrics": baseline}}
+    )
+    return {"success": True}
+
+
+@api_router.get("/biometric/reactions")
+async def get_my_reactions(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    """Ritorna le reazioni biometriche dell'utente corrente."""
+    reactions = await database.biometric_reactions.find(
+        {"user_id": str(current_user.id)}
+    ).to_list(100)
+    return {"reactions": reactions}
+
 # Include the router in the main app
 fastapi_app.include_router(api_router)
 
