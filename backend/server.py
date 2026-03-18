@@ -9,6 +9,11 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 from datetime import datetime
+# ===== SECURITY IMPORTS =====
+from security_middleware import SecurityMiddleware
+from jwt_manager import get_current_user_id, require_admin
+from admin_routes import admin_router
+from upload_validator import validate_image_upload, generate_safe_filename
 from models import (
     UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate, 
     Match, ChatMessage, ChatMessageCreate, Notification, FCMToken,
@@ -1060,6 +1065,9 @@ async def get_my_reactions(
 
 # Include the router in the main app
 fastapi_app.include_router(api_router)
+fastapi_app.include_router(admin_router)  # Admin routes
+# ===== SECURITY MIDDLEWARE =====
+fastapi_app.add_middleware(SecurityMiddleware)
 
 fastapi_app.add_middleware(
     CORSMiddleware,
