@@ -29,7 +29,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user) return <Navigate to="/auth" replace />;
 
   // Redirect a calibrazione se non ancora calibrato
-  if (!user.biometrics?.baseline_calibrated && window.location.pathname !== '/calibration') {
+  if (!(user as any).biometrics?.baseline_calibrated && window.location.pathname !== '/calibration') {
     return <Navigate to="/calibration" replace />;
   }
 
