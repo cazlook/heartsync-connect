@@ -1449,7 +1449,7 @@ fastapi_app.include_router(admin_router)
 
 # ─── BOOTSTRAP SUPERADMIN (usa solo una volta) ────────────────────────────────
 
-BOOTSTRAP_SECRET = "heartsync_bootstrap_2026"
+BOOTSTRAP_SECRET = "SyncLove_bootstrap_2026"
 
 @fastapi_app.post("/api/bootstrap/superadmin")
 async def bootstrap_superadmin(body: dict, database=Depends(get_db)):

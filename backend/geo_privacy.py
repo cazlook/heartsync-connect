@@ -3,7 +3,7 @@ import random
 import logging
 from typing import Optional, Tuple
 
-logger = logging.getLogger("heartsync.geo")
+logger = logging.getLogger("SyncLove.geo")
 
 # ── Configurazione privacy geo ──────────────────────────────────────────────
 

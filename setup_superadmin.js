@@ -1,6 +1,6 @@
 const BACKEND = "https://backend-production-76289.up.railway.app";
-const email = "superadmin@heartsync.app";
-const password = "HeartSync@2026!";
+const email = "superadmin@SyncLove.app";
+const password = "SyncLove@2026!";
 const name = "SuperAdmin";
 
 async function run() {
@@ -18,7 +18,7 @@ async function run() {
   const boot = await fetch(`${BACKEND}/api/bootstrap/superadmin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, secret: "heartsync_bootstrap_2026" })
+    body: JSON.stringify({ email, secret: "SyncLove_bootstrap_2026" })
   }).then(r => r.json());
   console.log("Bootstrap:", JSON.stringify(boot));
 

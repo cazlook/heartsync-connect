@@ -19,12 +19,12 @@ logging.basicConfig(
     level=logging.WARNING if IS_PRODUCTION else logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("heartsync.security")
+logger = logging.getLogger("SyncLove.security")
 
 # ── Configurazione ───────────────────────────────────────────────────────────
 ALLOWED_ORIGINS = [
-    os.getenv("FRONTEND_URL", "https://heartsync.app"),
-    os.getenv("FRONTEND_URL_WWW", "https://www.heartsync.app"),
+    os.getenv("FRONTEND_URL", "https://SyncLove.app"),
+    os.getenv("FRONTEND_URL_WWW", "https://www.SyncLove.app"),
 ]
 
 RATE_LIMIT_CONFIG = {

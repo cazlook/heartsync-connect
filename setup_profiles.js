@@ -124,7 +124,7 @@ async function setup() {
   const adminToken = (await fetch(`${BACKEND}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "superadmin@heartsync.app", password: "HeartSync@2026!" })
+    body: JSON.stringify({ email: "superadmin@SyncLove.app", password: "SyncLove@2026!" })
   }).then(r => r.json())).access_token;
 
   const allUsers = await fetch(`${BACKEND}/api/admin/users?limit=20`, {
@@ -183,7 +183,7 @@ async function setup() {
     if (!targetId || !targetToken) continue;
 
     // Target likes superadmin
-    const adminId = userMap["superadmin@heartsync.app"];
+    const adminId = userMap["superadmin@SyncLove.app"];
     if (adminId) {
       await fetch(`${BACKEND}/api/discovery/swipe`, {
         method: "POST",

@@ -6,7 +6,7 @@ export default function EventsPage() {
         <div className="text-6xl mb-4">🚫</div>
         <h2 className="text-xl font-bold mb-2">Feature non disponibile</h2>
         <p className="text-slate-400 text-sm">
-          Gli eventi pubblici sono stati rimossi. HeartSync si concentra esclusivamente
+          Gli eventi pubblici sono stati rimossi. SyncLove si concentra esclusivamente
           sulle connessioni basate su reazioni biometriche reali.
         </p>
       </div>

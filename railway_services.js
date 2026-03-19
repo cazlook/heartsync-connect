@@ -4,7 +4,7 @@ const environmentId = "779d319c-730a-43a3-a329-a31b47cce6c5";
 
 async function fixAndDeploy() {
   // Set rootDirectory on the service instance
-  console.log("Setting rootDirectory to heartsync/backend...");
+  console.log("Setting rootDirectory to SyncLove/backend...");
   const updateRes = await fetch("https://backboard.railway.app/graphql/v2", {
     method: "POST",
     headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -14,7 +14,7 @@ async function fixAndDeploy() {
           serviceId: "${serviceId}",
           environmentId: "${environmentId}",
           input: {
-            rootDirectory: "heartsync/backend",
+            rootDirectory: "SyncLove/backend",
             startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
           }
         )

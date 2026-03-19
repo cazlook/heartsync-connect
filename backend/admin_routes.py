@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from jwt_manager import require_admin, get_current_user_id
 from security_middleware import get_client_ip, record_failed_login, is_ip_blocked
 
-logger = logging.getLogger("heartsync.admin")
+logger = logging.getLogger("SyncLove.admin")
 
 # ── CRITICO: L'admin router NON viene mai montato su /admin (URL pubblico) ──────
 # Viene montato su un path non prevedibile configurato da variabile ambiente.

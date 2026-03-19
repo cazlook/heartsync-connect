@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 from fastapi import UploadFile, HTTPException, status
 from PIL import Image
 
-logger = logging.getLogger("heartsync.upload")
+logger = logging.getLogger("SyncLove.upload")
 
 # ── Configurazione upload ───────────────────────────────────────────────
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB

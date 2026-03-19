@@ -8,7 +8,7 @@ import jwt
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-logger = logging.getLogger("heartsync.jwt")
+logger = logging.getLogger("SyncLove.jwt")
 
 # ── Configurazione JWT (tutte le chiavi da variabili ambiente, MAI nel codice) ──
 JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]          # chiave forte, min 64 chars

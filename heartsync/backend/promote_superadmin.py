@@ -13,7 +13,7 @@ load_dotenv(Path(__file__).parent / '.env')
 
 async def promote(email: str):
     mongo_url = os.environ.get("MONGO_URL")
-    db_name = os.environ.get("DB_NAME", "heartsync")
+    db_name = os.environ.get("DB_NAME", "SyncLove")
     if not mongo_url:
         print("ERROR: MONGO_URL not set in .env")
         sys.exit(1)
