@@ -17,7 +17,7 @@ interface BiometricDebugPanelProps {
 }
 
 export function BiometricDebugPanel({ profileId }: BiometricDebugPanelProps) {
-  const { bpm, baselineMean, baselineStd, reaction, confidence } = useBiometric(profileId);
+  const { bpm, baselineMean, baselineStd, reaction, confidence } = useBiometric(profileId, debugMode, setDebugMode, setFakeBPM } = useBiometric(profileId);
   const [debugMode, setDebugMode] = useState(false);
   const [fakeBPM, setFakeBPM] = useState(70);
   const [simulationActive, setSimulationActive] = useState(false);
