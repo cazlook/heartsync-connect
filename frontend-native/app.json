@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "SyncLove",
+    "slug": "synclove",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "newArchEnabled": true
+  }
+}
