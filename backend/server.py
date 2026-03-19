@@ -986,6 +986,8 @@ class BiometricReactionCreate(BaseModel):
     target_profile_id: str
     z_score: float
     peak_bpm: int
+        confidence: float = 0.0  # 0-1 affidabilità
+    level: str = 'low'  # 'low' | 'medium' | 'high'
 
 
 @api_router.post("/biometric/reaction")
@@ -1024,11 +1026,13 @@ async def save_biometric_reaction(
         })
         if not existing:
             # Calcola cardiac_score combinato (media z_score * 33, clamp 0-100)
-            combined_score = min(100, int(((reaction.z_score + mutual.get("z_score", 2.0)) / 2) * 33))
-            match_doc = {
+                            # Calcola cardiac_score combinato + confidence
+                combined_score = min(100, int(((reaction.z_score + mutual.get("z_score", 2.0)) / 2) * 33))
+                combined_confidence = (reaction.confidence + mutual.get("confidence", 0.5)) / 2match_doc = {
                 "user1_id": user_id,
                 "user2_id": target_id,
                 "cardiac_score": combined_score,
+                                    "confidence": combined_confidence,
                 "matched_at": datetime.utcnow().isoformat(),
                 "is_biometric": True,
             }

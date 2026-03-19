@@ -127,6 +127,18 @@ export default function MatchesPageRealtime() {
                         style={{ width: `${Math.min(match.cardiac_score, 100)}%` }}
                       />
                     </div>
+                                            {match.confidence && (
+                          <div className="flex items-center gap-1 text-xs text-slate-400">
+                            <span>🎯 Affidabilità:</span>
+                            <span className={`font-medium ${
+                              match.confidence >= 0.7 ? 'text-green-400' : 
+                              match.confidence >= 0.5 ? 'text-yellow-400' : 
+                              'text-orange-400'
+                            }`}>
+                              {Math.round(match.confidence * 100)}%
+                            </span>
+                          </div>
+                        )}
                   )}
                 </div>
               </div>
