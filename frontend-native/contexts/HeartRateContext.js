@@ -6,6 +6,7 @@ export function HeartRateProvider({ children }) {
   const [heartRate, setHeartRate] = useState(null);
   const [isCalibrated, setIsCalibrated] = useState(false);
   const [calibrationData, setCalibrationData] = useState(null);
+  const [baselineBpm, setBaselineBpm] = useState(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const intervalRef = useRef(null);
 
@@ -35,12 +36,14 @@ export function HeartRateProvider({ children }) {
     const max = Math.max(...readings);
     const data = { avg, min, max, timestamp: Date.now() };
     setCalibrationData(data);
+    setBaselineBpm(Math.round(avg));
     setIsCalibrated(true);
     return data;
   }, []);
 
   const resetCalibration = useCallback(() => {
     setCalibrationData(null);
+    setBaselineBpm(null);
     setIsCalibrated(false);
     setHeartRate(null);
   }, []);
@@ -60,6 +63,7 @@ export function HeartRateProvider({ children }) {
     <HeartRateContext.Provider
       value={{
         heartRate,
+        baselineBpm,
         isCalibrated,
         calibrationData,
         isMonitoring,
