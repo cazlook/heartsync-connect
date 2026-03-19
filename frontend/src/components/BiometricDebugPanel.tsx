@@ -1,6 +1,8 @@
 // BiometricDebugPanel.tsx - Complete debug system for biometric testing
 import React, { useState, useEffect } from 'react';
 import { useBiometric } from '../useBiometric';
+import { TEST_SCENARIOS } from '../debug/biometric-test-scenarios';
+import { supabase } from '@/lib/supabase';
 
 interface DebugEvent {
   timestamp: number;
@@ -17,13 +19,17 @@ interface BiometricDebugPanelProps {
 }
 
 export function BiometricDebugPanel({ profileId }: BiometricDebugPanelProps) {
-  const { bpm, baselineMean, baselineStd, reaction, confidence } = useBiometric(profileId, debugMode, setDebugMode, setFakeBPM } = useBiometric(profileId);
-  const [debugMode, setDebugMode] = useState(false);
+  const { bpm, baselineMean, baselineStd, reaction, confidence, debugMode, setDebugMode, setFakeBPM } = useBiometric(profileId);  const [debugMode, setDebugMode] = useState(false);
   const [fakeBPM, setFakeBPM] = useState(70);
   const [simulationActive, setSimulationActive] = useState(false);
   const [simulationPattern, setSimulationPattern] = useState<string | null>(null);
   const [debugEvents, setDebugEvents] = useState<DebugEvent[]>([]);
   const [recentReactions, setRecentReactions] = useState<any[]>([]);
+  const [testResults, setTestResults] = useState<Array<{scenario: string; expected: string; actual: string; pass: boolean}>>([]);
+  const [isTestingRunning, setIsTestingRunning] = useState(false);
+  const [userBZScore, setUserBZScore] = useState(1.5);
+  const [userBReactionsCount, setUserBReactionsCount] = useState(2);
+  const [matchResult, setMatchResult] = useState<boolean | null>(null);
 
   // Calculate z-score
   const zScore = baselineStd > 0 ? (bpm - baselineMean) / baselineStd : 0;
@@ -90,6 +96,76 @@ export function BiometricDebugPanel({ profileId }: BiometricDebugPanelProps) {
 
     return () => clearInterval(interval);
   }, [simulationActive, simulationPattern]);
+
+  // 🧪 Run all test scenarios
+  const runAllTests = async () => {
+    setIsTestingRunning(true);
+    setDebugMode(true);
+    const results = [];
+
+    for (const scenario of TEST_SCENARIOS) {
+      // Inject BPM
+      if (scenario.bpm) {
+        setFakeBPM(scenario.bpm);
+      } else if (scenario.bpmSequence) {
+        // For NOISE scenario, cycle through sequence
+        let index = 0;
+        const noiseInterval = setInterval(() => {
+          setFakeBPM(scenario.bpmSequence![index % scenario.bpmSequence!.length]);
+          index++;
+        }, 1000);
+        setTimeout(() => clearInterval(noiseInterval), scenario.duration);
+      }
+
+      // Wait duration + buffer
+      await new Promise(resolve => setTimeout(resolve, scenario.duration + 1000));
+
+      // Read reaction from hook
+      const actual = reaction;
+      const pass = actual === scenario.expectedReaction;
+
+      results.push({
+        scenario: scenario.name,
+        expected: scenario.expectedReaction,
+        actual,
+        pass
+      });
+
+      console.log(`[TEST] ${scenario.name}: Expected ${scenario.expectedReaction}, Got ${actual} - ${pass ? '✅ PASS' : '❌ FAIL'}`);
+    }
+
+    setTestResults(results);
+    setIsTestingRunning(false);
+  };
+
+  // 💾 Fetch recent reactions from Supabase
+  const fetchRecentReactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('biometric_reactions')
+        .select('*')
+        .eq('profile_id', profileId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setRecentReactions(data || []);
+    } catch (error) {
+      console.error('[STORAGE VIEWER] Error fetching reactions:', error);
+    }
+  };
+
+  // 🤝 Simulate match logic
+  const simulateMatch = () => {
+    // Current user (A) reactions count from reactions array
+    const userAReactionsCount = reactions.length;
+    
+    // Simulate match logic: both users need >= 2 reactions
+    const match = userAReactionsCount >= 2 && userBReactionsCount >= 2;
+    
+    setMatchResult(match);
+    console.log(`[MATCH SIM] UserA reactions: ${userAReactionsCount}, UserB reactions: ${userBReactionsCount}, UserB z-score: ${userBZScore} -> ${match ? '✅ MATCH' : '❌ NO MATCH'}`);
+  };
 
   if (!debugMode) {
     return (
@@ -183,11 +259,85 @@ export function BiometricDebugPanel({ profileId }: BiometricDebugPanelProps) {
         </div>
       </div>
 
-      {/* Recent Reactions */}
+      {/* 20
+      
       <div className="bg-gray-900 p-4 rounded">
         <h3 className="font-bold mb-2">💾 Recent Reactions</h3>
-        <div className="text-xs text-gray-500">TODO: Fetch from storage</div>
+        <button onClick={fetchRecentReactions} className="bg-blue-600 px-3 py-1 rounded text-sm mb-2">Refresh</button>
+        <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
+          {recentReactions.length === 0 ? (
+            <div className="text-gray-500">No reactions yet</div>
+          ) : (
+            recentReactions.map((r: any, i: number) => (
+              <div key={i} className="bg-gray-800 p-2 rounded">
+                <div>BPM: {r.bpm} | Z: {r.z_score?.toFixed(2)} | {r.reaction}</div>
+                <div className="text-gray-400">Conf: {(r.confidence * 100).toFixed(0)}% | {new Date(r.created_at).toLocaleTimeString()}</div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
+
+      {/* 🤝 Match Simulator */}
+      <div className="bg-gray-900 p-4 rounded mb-4">
+        <h3 className="font-bold mb-2">🤝 Match Simulator</h3>
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs">UserB Z-Score: {userBZScore.toFixed(2)}</label>
+            <input
+              type="range"
+              min="0"
+              max="3"
+              step="0.1"
+              value={userBZScore}
+              onChange={(e) => setUserBZScore(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+          
+          <div>
+            <label className="text-xs">UserB Reactions Count:</label>
+            <input
+              type="number"
+              value={userBReactionsCount}
+              onChange={(e) => setUserBReactionsCount(Number(e.target.value))}
+              className="w-full bg-gray-800 px-2 py-1 rounded"
+              min="0"
+            />
+          </div>
+
+          <button onClick={simulateMatch} className="bg-purple-600 px-3 py-2 rounded w-full">Simulate Match</button>
+
+          {matchResult !== null && (
+            <div className={`text-center py-2 rounded ${matchResult ? 'bg-green-600' : 'bg-red-600'}`}>
+              {matchResult ? '✅ MATCH' : '❌ NO MATCH'}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 🧪 Automated Tests */}
+      <div className="bg-gray-900 p-4 rounded">
+        <h3 className="font-bold mb-2">🧪 Test Scenarios</h3>
+        <button 
+          onClick={runAllTests} 
+          disabled={isTestingRunning}
+          className="bg-green-600 px-3 py-2 rounded w-full mb-2 disabled:opacity-50"
+        >
+          {isTestingRunning ? 'Running Tests...' : 'Run All Tests'}
+        </button>
+        <div className="space-y-1 text-xs max-h-40 overflow-y-auto">
+          {testResults.length === 0 ? (
+            <div className="text-gray-500">No test results yet</div>
+          ) : (
+            testResults.map((result, i) => (
+              <div key={i} className={`p-2 rounded ${result.pass ? 'bg-green-900' : 'bg-red-900'}`}>
+                <div className="font-bold">{result.scenario} {result.pass ? '✅' : '❌'}</div>
+                <div>Expected: {result.expected} | Actual: {result.actual}</div>
+              </div>
+            ))
+          )}
+        </div>      </div>
     </div>
   );
 }
