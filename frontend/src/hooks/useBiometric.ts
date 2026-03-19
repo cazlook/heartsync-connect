@@ -34,6 +34,18 @@ export function useBiometric(profileId?: string) {
   const { user } = useAuth();
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [currentBpm, setCurrentBpm] = useState<number>(0);
+
+    // 🔬 DEBUG MODE - Single source of truth for BPM
+  const [debugMode, setDebugMode] = useState(false);
+  const [fakeBPM, setFakeBPM] = useState<number | null>(null);
+
+    // ⚠️ SINGLE SOURCE OF TRUTH for BPM
+  const getCurrentBPM = (): number => {
+    if (debugMode && fakeBPM !== null) {
+      return fakeBPM; // Debug mode: use fake BPM
+    }
+    return currentBpm; // Production: use real BPM
+  };
   const [baseline, setBaseline] = useState<BaselineData>({
     mean: 70,
     stdDev: 5,
@@ -169,8 +181,10 @@ export function useBiometric(profileId?: string) {
     stopMonitoring,
     
     // BPM data
-    currentBpm,
+    bpm: getCurrentBPM(),
     baseline,
+        baselineMean: baseline.mean,
+    baselineStd: baseline.stdDev,
     isBaselineCalibrated,
     
     // Reaction data (V2 features)
@@ -186,5 +200,10 @@ export function useBiometric(profileId?: string) {
     
     // Multi-signal validation result
     multiSignalValidation: profileId ? validateMultiSignal(reactions, profileId) : null,
-  };
+  
+  
+      // 🔬 Debug controls (exported for BiometricDebugPanel)
+    debugMode,
+    setDebugMode,
+    setFakeBPM,};
 }
