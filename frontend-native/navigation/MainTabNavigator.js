@@ -1,14 +1,18 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Heart, Users, MessageCircle, BarChart2, User } from 'lucide-react-native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MatchesScreen from '../screens/MatchesScreen';
 import InsightsScreen from '../screens/InsightsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ChatListScreen from '../screens/ChatListScreen';
 
 const Tab = createBottomTabNavigator();
 const ChatStack = createNativeStackNavigator();
+
+function TabIcon({ emoji, color }) {
+  return <Text style={{ fontSize: 22, color }}>{emoji}</Text>;
+}
 
 function ChatStackNavigator() {
   return (
@@ -42,7 +46,7 @@ export default function MainTabNavigator() {
         component={MatchesScreen}
         options={{
           title: 'Match',
-          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
+          tabBarIcon: ({ color }) => <TabIcon emoji="❤️" color={color} />,
         }}
       />
       <Tab.Screen
@@ -50,7 +54,7 @@ export default function MainTabNavigator() {
         component={ChatStackNavigator}
         options={{
           title: 'Chat',
-          tabBarIcon: ({ color, size }) => <MessageCircle color={color} size={size} />,
+          tabBarIcon: ({ color }) => <TabIcon emoji="💬" color={color} />,
         }}
       />
       <Tab.Screen
@@ -58,7 +62,7 @@ export default function MainTabNavigator() {
         component={InsightsScreen}
         options={{
           title: 'Insights',
-          tabBarIcon: ({ color, size }) => <BarChart2 color={color} size={size} />,
+          tabBarIcon: ({ color }) => <TabIcon emoji="📊" color={color} />,
         }}
       />
       <Tab.Screen
@@ -66,7 +70,7 @@ export default function MainTabNavigator() {
         component={ProfileScreen}
         options={{
           title: 'Profilo',
-          tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
+          tabBarIcon: ({ color }) => <TabIcon emoji="👤" color={color} />,
         }}
       />
     </Tab.Navigator>
