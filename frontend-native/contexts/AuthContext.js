@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { API_URL } from '../constants/api';
 
 const AuthContext = createContext(null);
 
@@ -9,7 +11,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load stored auth state on mount
     loadStoredAuth();
   }, []);
 
@@ -28,15 +29,20 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const login = async (userData, authToken) => {
-    try {
-      await AsyncStorage.setItem('authToken', authToken);
-      await AsyncStorage.setItem('authUser', JSON.stringify(userData));
-      setToken(authToken);
-      setUser(userData);
-    } catch (error) {
-      console.error('Failed to save auth state:', error);
-    }
+  const login = async (email, password) => {
+    const { data } = await axios.post(`${API_URL}/api/auth/login`, { email, password });
+    await AsyncStorage.setItem('authToken', data.token);
+    await AsyncStorage.setItem('authUser', JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
+  };
+
+  const register = async ({ email, password, name }) => {
+    const { data } = await axios.post(`${API_URL}/api/auth/register`, { email, password, name });
+    await AsyncStorage.setItem('authToken', data.token);
+    await AsyncStorage.setItem('authUser', JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
   };
 
   const logout = async () => {
@@ -67,6 +73,7 @@ export function AuthProvider({ children }) {
         token,
         loading,
         login,
+        register,
         logout,
         updateUser,
         isAuthenticated: !!user && !!token,
