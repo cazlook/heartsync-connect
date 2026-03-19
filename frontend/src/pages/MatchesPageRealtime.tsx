@@ -9,6 +9,7 @@ interface BiometricMatch {
   user2_id: string;
   cardiac_score: number;
   matched_at: string;
+    confidence: number;
   other_profile?: {
     id: string;
     full_name: string;
@@ -33,15 +34,14 @@ export default function MatchesPageRealtime() {
 
     const { data: matchData, error } = await supabase
       .from('matches')
-      .select('id, user1_id, user2_id, cardiac_score, matched_at')
-      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+      .select('id, user1_id, user2_id, cardiac_score, matched_at, confidence')
       .order('matched_at', { ascending: false });
+            .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
 
     if (error || !matchData) { setLoading(false); return; }
 
     const enriched = await Promise.all(matchData.map(async (m) => {
       const otherId = m.user1_id === user.id ? m.user2_id : m.user1_id;
-      const { data: profile } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, age')
         .eq('id', otherId)

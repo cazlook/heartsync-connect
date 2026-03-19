@@ -64,7 +64,7 @@ export interface BiometricReaction {
   baselineBpm: number;
   timestamp: number;
   confidence: number;  // 0-1 affidabilità
-  level: 'low' | 'medium' | 'high';  // livello interesse
+  level: 'low' | 'medium' | 'high' | 'none';  // livello interesse
 }
 
 export interface ConfidenceFactors {
