@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useBiometric } from '@/hooks/useBiometric';
+import { BiometricDebugPanel } from '@/components/BiometricDebugPanel';
 
 interface Profile {
   id: string;
@@ -147,6 +148,11 @@ export default function DiscoveryPage() {
       <div className="fixed bottom-20 left-1/2 -translate-x-1/2 text-slate-500 text-xs">
         {currentIndex + 1} / {profiles.length} • Scorri per esplorare
       </div>
+
+            {/* 🔬 Debug Panel - Only in development */}
+      {__DEV__ && currentProfile && (
+        <BiometricDebugPanel profileId={currentProfile.id} />
+      )}
     </div>
   );
 }
