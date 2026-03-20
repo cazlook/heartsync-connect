@@ -1,44 +1,80 @@
 /**
  * HealthKitService.js
- * iOS HealthKit heart rate integration
- * Abstracts native HealthKit behind a unified BiometricService interface
+ * iOS HealthKit heart rate integration — lazy require edition.
+ *
+ * CRITICAL: react-native-health uses TurboModules and CANNOT be required at
+ * module scope in Expo Go or when the native binary hasn't linked the module.
+ * All requires are deferred inside functions so they only execute when called.
  */
 import { Platform } from 'react-native';
 
-// Constants
 const MIN_BPM = 30;
 const MAX_BPM = 220;
-
-let AppleHealthKit = null;
-if (Platform.OS === 'ios') {
-  try {
-    AppleHealthKit = require('react-native-health').default;
-  } catch (e) {
-    console.warn('react-native-health not available, HealthKit disabled');
-  }
-}
-
-const HK_PERMISSIONS = AppleHealthKit ? {
-  permissions: {
-    read: [AppleHealthKit.Constants.Permissions.HeartRate],
-    write: [],
-  },
-} : null;
 
 let _subscriptionActive = false;
 let _lastBpm = null;
 let _bpmCallback = null;
 
 /**
+ * Lazily load AppleHealthKit. Returns null if unavailable.
+ * Never called at module load time.
+ */
+function getAppleHealthKit() {
+  if (Platform.OS !== 'ios') return null;
+  try {
+    return require('react-native-health').default;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build HealthKit permissions object.
+ * Only called after confirming we're on iOS.
+ */
+function buildPermissions(AppleHealthKit) {
+  return {
+    permissions: {
+      read: [AppleHealthKit.Constants.Permissions.HeartRate],
+      write: [],
+    },
+  };
+}
+
+/**
+ * Check if HealthKit is available on this device/environment.
+ * Safe to call in Expo Go — returns false without crashing.
+ */
+export function isAvailable() {
+  if (Platform.OS !== 'ios') return false;
+  try {
+    const hk = require('react-native-health').default;
+    return !!hk;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validate a BPM reading. Returns null if out of range.
+ */
+export function validateBpm(bpm) {
+  if (typeof bpm !== 'number' || isNaN(bpm)) return null;
+  if (bpm < MIN_BPM || bpm > MAX_BPM) return null;
+  return bpm;
+}
+
+/**
  * Request HealthKit authorization.
- * Resolves true if granted, false otherwise.
+ * Returns false (no crash) in Expo Go / when module is absent.
  */
 export async function requestAuthorization() {
-  if (Platform.OS !== 'ios' || !AppleHealthKit) return false;
+  const AppleHealthKit = getAppleHealthKit();
+  if (!AppleHealthKit) return false;
   return new Promise((resolve) => {
-    AppleHealthKit.initHealthKit(HK_PERMISSIONS, (err) => {
+    AppleHealthKit.initHealthKit(buildPermissions(AppleHealthKit), (err) => {
       if (err) {
-        console.error('HealthKit auth error:', err);
+        console.warn('HealthKit auth error:', err);
         resolve(false);
       } else {
         resolve(true);
@@ -48,60 +84,28 @@ export async function requestAuthorization() {
 }
 
 /**
- * Validate a BPM reading.
- * Rejects out-of-range values per spec (< 30 or > 220).
- */
-export function validateBpm(bpm) {
-  if (typeof bpm !== 'number' || isNaN(bpm)) return null;
-  if (bpm < MIN_BPM || bpm > MAX_BPM) return null;
-  return bpm;
-}
-
-/**
  * Start streaming heart rate from HealthKit.
- * @param {Function} callback - called with { bpm, timestamp } on each reading
- * @returns {Function} unsubscribe function
+ * Primary: observer subscription (~1-2 sec latency).
+ * Fallback: polling every 2 seconds.
+ * Returns a no-op unsubscribe if HealthKit is unavailable.
+ *
+ * @param {Function} callback - ({ bpm, timestamp }) => void
+ * @returns {Function} unsubscribe
  */
 export function startMonitoring(callback) {
-  if (Platform.OS !== 'ios' || !AppleHealthKit) {
-    console.warn('HealthKit not available on this platform');
+  const AppleHealthKit = getAppleHealthKit();
+  if (!AppleHealthKit) {
+    console.warn('HealthKit not available — use BpmSimulatorService in Expo Go');
     return () => {};
   }
 
   _bpmCallback = callback;
   _subscriptionActive = true;
 
-  // Primary: observer query for new HK samples (~1-2s)
-  const observer = AppleHealthKit.subscribeToChanges(
-    AppleHealthKit.Constants.Permissions.HeartRate,
-    () => {
-      if (!_subscriptionActive) return;
-      const options = {
-        unit: 'bpm',
-        startDate: new Date(Date.now() - 10000).toISOString(), // last 10 sec
-        endDate: new Date().toISOString(),
-        ascending: false,
-        limit: 1,
-      };
-      AppleHealthKit.getHeartRateSamples(options, (err, results) => {
-        if (err || !results || results.length === 0) return;
-        const bpm = validateBpm(Math.round(results[0].value));
-        if (bpm !== null) {
-          _lastBpm = bpm;
-          if (_bpmCallback) {
-            _bpmCallback({ bpm, timestamp: new Date(results[0].endDate).getTime() });
-          }
-        }
-      });
-    }
-  );
-
-  // Fallback: polling every 2 seconds
-  const pollInterval = setInterval(() => {
-    if (!_subscriptionActive) return;
+  function fetchLatest() {
     const options = {
       unit: 'bpm',
-      startDate: new Date(Date.now() - 5000).toISOString(),
+      startDate: new Date(Date.now() - 10000).toISOString(),
       endDate: new Date().toISOString(),
       ascending: false,
       limit: 1,
@@ -109,45 +113,53 @@ export function startMonitoring(callback) {
     AppleHealthKit.getHeartRateSamples(options, (err, results) => {
       if (err || !results || results.length === 0) return;
       const bpm = validateBpm(Math.round(results[0].value));
-      if (bpm !== null && bpm !== _lastBpm) {
+      if (bpm !== null) {
         _lastBpm = bpm;
         if (_bpmCallback) {
           _bpmCallback({ bpm, timestamp: new Date(results[0].endDate).getTime() });
         }
       }
     });
+  }
+
+  // Primary: observer for new HK samples
+  let observer = null;
+  try {
+    observer = AppleHealthKit.subscribeToChanges(
+      AppleHealthKit.Constants.Permissions.HeartRate,
+      () => { if (_subscriptionActive) fetchLatest(); }
+    );
+  } catch (e) {
+    console.warn('HealthKit subscribeToChanges failed, using polling only:', e.message);
+  }
+
+  // Fallback: polling every 2 seconds
+  const pollInterval = setInterval(() => {
+    if (_subscriptionActive) fetchLatest();
   }, 2000);
 
   return () => {
     _subscriptionActive = false;
     _bpmCallback = null;
     clearInterval(pollInterval);
-    if (observer && typeof observer.remove === 'function') {
-      observer.remove();
-    }
+    if (observer && typeof observer.remove === 'function') observer.remove();
   };
 }
 
-/**
- * Stop heart rate monitoring.
- */
 export function stopMonitoring() {
   _subscriptionActive = false;
   _bpmCallback = null;
 }
 
-/**
- * Get the last known BPM reading.
- */
 export function getLastBpm() {
   return _lastBpm;
 }
 
 export default {
+  isAvailable,
   requestAuthorization,
   validateBpm,
   startMonitoring,
   stopMonitoring,
   getLastBpm,
-  isAvailable: () => Platform.OS === 'ios' && AppleHealthKit !== null,
 };
