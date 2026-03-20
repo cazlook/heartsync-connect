@@ -17,67 +17,47 @@ export default function PostMatchScreen({ navigation, route }) {
     Animated.sequence([
       Animated.delay(200),
       Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 5,
-          tension: 80,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
       ]),
     ]).start();
   }, []);
 
-  const handleStartChat = () => {
-    navigation.navigate('Chat', { matchId: matchData?._id, matchUser: matchData?.user });
-  };
-
-  const handleViewMatches = () => {
-    navigation.navigate('MainTabs', { screen: 'Matches' });
-  };
+  const cardiacScore = matchData?.cardiacScore || 0;
+  const matchedUser = matchData?.matchedUser || { displayName: 'Qualcuno speciale' };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: opacityAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        {/* Heart icon */}
-        <View style={styles.heartContainer}>
-          <Text style={styles.heartEmoji}>❤️</Text>
+      <Animated.View style={[styles.content, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
+        <Text style={styles.eyesEmoji}>👀</Text>
+        <Text style={styles.title}>Qualcuno ha fatto{`\n`}battere il tuo cuore</Text>
+        <Text style={styles.nameReveal}>{matchedUser.displayName}</Text>
+
+        <View style={styles.scoreCard}>
+          <Text style={styles.scoreLabel}>Sintonia cardiaca</Text>
+          <Text style={styles.scoreValue}>{Math.round(cardiacScore)}%</Text>
+          <View style={styles.scoreBar}>
+            <View style={[styles.scoreBarFill, { width: `${Math.min(cardiacScore, 100)}%` }]} />
+          </View>
         </View>
 
-        <Text style={styles.title}>It's a HeartSync!</Text>
-        <Text style={styles.subtitle}>
-          Your hearts beat in rhythm with{' '}
-          <Text style={styles.nameHighlight}>
-            {matchData?.user?.name || 'someone special'}
-          </Text>
-          .
+        <Text style={styles.description}>
+          I vostri battiti cardiaci si sono sincronizzati reciprocamente.
+          Questo è un match autentico, non c'è stato nessun swipe.
         </Text>
 
-        {matchData?.syncScore != null && (
-          <View style={styles.scoreContainer}>
-            <Text style={styles.scoreLabel}>Heart Sync Score</Text>
-            <Text style={styles.scoreValue}>{matchData.syncScore}%</Text>
-          </View>
-        )}
-
-        <View style={styles.buttons}>
-          <TouchableOpacity style={styles.btnPrimary} onPress={handleStartChat}>
-            <Text style={styles.btnPrimaryText}>Start Chatting 💬</Text>
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={() => navigation.navigate('Chat', { matchId: matchData?.id, user: matchedUser })}
+          >
+            <Text style={styles.chatButtonText}>💬 Scrivi un messaggio</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btnSecondary} onPress={handleViewMatches}>
-            <Text style={styles.btnSecondaryText}>View All Matches</Text>
+          <TouchableOpacity
+            style={styles.laterButton}
+            onPress={() => navigation.navigate('Main')}
+          >
+            <Text style={styles.laterButtonText}>Dopo</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -86,93 +66,31 @@ export default function PostMatchScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0d0d1a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    width: '100%',
-  },
-  heartContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(244,63,94,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
-    borderWidth: 2,
-    borderColor: 'rgba(244,63,94,0.3)',
-  },
-  heartEmoji: {
-    fontSize: 56,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.65)',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  nameHighlight: {
-    color: '#f43f5e',
-    fontWeight: '700',
-  },
-  scoreContainer: {
-    backgroundColor: 'rgba(244,63,94,0.1)',
+  container: { flex: 1, backgroundColor: '#0a0a0f' },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  eyesEmoji: { fontSize: 72, marginBottom: 16 },
+  title: { fontSize: 26, fontWeight: 'bold', color: '#fff', textAlign: 'center', lineHeight: 34, marginBottom: 12 },
+  nameReveal: { fontSize: 32, fontWeight: 'bold', color: '#e91e63', marginBottom: 32 },
+  scoreCard: {
+    backgroundColor: '#1a1a2e',
     borderRadius: 16,
     padding: 20,
-    alignItems: 'center',
-    marginBottom: 40,
-    borderWidth: 1,
-    borderColor: 'rgba(244,63,94,0.2)',
-  },
-  scoreLabel: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 4,
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#f43f5e',
-  },
-  buttons: {
     width: '100%',
-    gap: 12,
+    marginBottom: 24,
   },
-  btnPrimary: {
-    backgroundColor: '#f43f5e',
-    borderRadius: 18,
-    paddingVertical: 18,
-    alignItems: 'center',
-    shadowColor: '#f43f5e',
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  btnPrimaryText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  btnSecondary: {
-    paddingVertical: 14,
+  scoreLabel: { fontSize: 14, color: '#888', marginBottom: 8 },
+  scoreValue: { fontSize: 48, fontWeight: 'bold', color: '#e91e63', marginBottom: 12 },
+  scoreBar: { height: 8, backgroundColor: '#2a2a4e', borderRadius: 4 },
+  scoreBarFill: { height: 8, backgroundColor: '#e91e63', borderRadius: 4 },
+  description: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 22, marginBottom: 32 },
+  actions: { width: '100%', gap: 12 },
+  chatButton: {
+    backgroundColor: '#e91e63',
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
   },
-  btnSecondaryText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 16,
-  },
+  chatButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  laterButton: { padding: 16, alignItems: 'center' },
+  laterButtonText: { color: '#888', fontSize: 14 },
 });
