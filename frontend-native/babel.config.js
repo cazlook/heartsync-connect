@@ -1,6 +1,6 @@
 module.exports = function(api) {
   api.cache(true);
   return {
-    presets: ['expo'],
+    presets: [['expo', { reanimated: false }]],
   };
 };
