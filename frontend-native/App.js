@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
@@ -57,26 +58,17 @@ function MainTabs() {
 function RootNavigator() {
   const { user, loading } = useAuth();
   if (loading) return null;
-
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!user ? (
         <Stack.Screen name="Auth" component={AuthScreen} />
       ) : (
         <>
-          <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="Calibration" component={CalibrationScreen} />
-          <Stack.Screen
-            name="Chat"
-            component={ChatScreen}
-            options={{ headerShown: true, headerStyle: { backgroundColor: '#0f0f1a' }, headerTintColor: '#fff' }}
-          />
+          <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="PostMatch" component={PostMatchScreen} />
-          <Stack.Screen
-            name="Notifications"
-            component={NotificationsScreen}
-            options={{ headerShown: true, headerStyle: { backgroundColor: '#0f0f1a' }, headerTintColor: '#fff', title: 'Notifiche' }}
-          />
+          <Stack.Screen name="Chat" component={ChatScreen} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} />
         </>
       )}
     </Stack.Navigator>
@@ -85,15 +77,17 @@ function RootNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <HeartRateProvider>
-        <SocketProvider>
-          <NavigationContainer>
-            <StatusBar style="light" />
-            <RootNavigator />
-          </NavigationContainer>
-        </SocketProvider>
-      </HeartRateProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <HeartRateProvider>
+          <SocketProvider>
+            <NavigationContainer>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </NavigationContainer>
+          </SocketProvider>
+        </HeartRateProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
