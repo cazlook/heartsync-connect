@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Image, SafeAreaView,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,103 +17,106 @@ export default function MatchesScreen({ navigation }) {
   const { token } = useAuth();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchMatches = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/chat/matches`, {
+      const { data } = await axios.get(`${API_URL}/api/matching/matches`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setMatches(data);
-    } catch {}
-    setLoading(false);
+      setMatches(data.matches || []);
+    } catch (e) {
+      console.error('Failed to fetch matches:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [token]);
 
   useEffect(() => { fetchMatches(); }, [fetchMatches]);
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('Chat', { matchId: item.id, user: item.other_user })}
-    >
-      <View style={styles.avatarContainer}>
-        {item.other_user.photos?.[0] ? (
-          <Image source={{ uri: item.other_user.photos[0] }} style={styles.avatar} resizeMode="cover" />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarLetter}>{item.other_user.name.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
-        <View style={styles.heartBadge}>
-          <Text style={styles.heartBadgeText}>❤️</Text>
-        </View>
-      </View>
-      <View style={styles.info}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name}>{item.other_user.name}</Text>
-          <View style={styles.scoreBadge}>
-            <Text style={styles.scoreText}>{item.cardiac_score}%</Text>
-          </View>
-        </View>
-        {item.other_user.city && <Text style={styles.city}>📍 {item.other_user.city}</Text>}
-        <Text style={styles.lastMsg} numberOfLines={1}>
-          {item.last_message || 'Inizia la conversazione 💬'}
-        </Text>
-      </View>
-      {item.unread_count ? (
-        <View style={styles.unreadBadge}>
-          <Text style={styles.unreadText}>{item.unread_count}</Text>
-        </View>
-      ) : null}
-    </TouchableOpacity>
-  );
+  const onRefresh = () => { setRefreshing(true); fetchMatches(); };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#e91e63" style={{ marginTop: 80 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <Text style={styles.title}>I tuoi Match</Text>
-      {loading ? (
-        <View style={styles.centered}><ActivityIndicator color="#f43f5e" /></View>
-      ) : matches.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyEmoji}>💕</Text>
-          <Text style={styles.emptyTitle}>Nessun match ancora</Text>
-          <Text style={styles.emptyText}>Il tuo cuore troverà qualcuno!</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={matches}
-          keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          onRefresh={fetchMatches}
-          refreshing={loading}
-        />
-      )}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>I tuoi match 💗</Text>
+        <Text style={styles.subtitle}>{matches.length} connessioni cardiache</Text>
+      </View>
+      <FlatList
+        data={matches}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e91e63" />}
+        ListEmptyComponent={
+          <View style={styles.emptyView}>
+            <Text style={styles.emptyIcon}>💓</Text>
+            <Text style={styles.emptyTitle}>Nessun match ancora</Text>
+            <Text style={styles.emptyText}>Il tuo cuore ti dirà quando è il momento</Text>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.matchCard}
+            onPress={() => navigation.navigate('Chat', { matchId: item.id, user: item.otherUser })}
+          >
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatar}>👤</Text>
+            </View>
+            <View style={styles.matchInfo}>
+              <Text style={styles.matchName}>{item.otherUser?.displayName || 'Utente'}</Text>
+              <Text style={styles.matchScore}>❤️ Sintonia: {Math.round(item.cardiacScore || 0)}%</Text>
+              {item.lastMessage && (
+                <Text style={styles.lastMessage} numberOfLines={1}>{item.lastMessage}</Text>
+              )}
+            </View>
+            <Text style={styles.arrow}>❯</Text>
+          </TouchableOpacity>
+        )}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f9fafb' },
-  title: { fontSize: 26, fontWeight: '900', color: '#1a1a2e', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emptyEmoji: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1a1a2e', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#9ca3af', textAlign: 'center' },
-  list: { paddingHorizontal: 16, paddingBottom: 24 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-  avatarContainer: { position: 'relative', marginRight: 14 },
-  avatar: { width: 56, height: 56, borderRadius: 28 },
-  avatarPlaceholder: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#f43f5e', alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { color: '#fff', fontWeight: '700', fontSize: 20 },
-  heartBadge: { position: 'absolute', bottom: -2, right: -2, backgroundColor: '#fff', borderRadius: 10, padding: 1 },
-  heartBadgeText: { fontSize: 14 },
-  info: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  name: { fontSize: 16, fontWeight: '700', color: '#1a1a2e' },
-  scoreBadge: { backgroundColor: '#fef2f2', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  scoreText: { fontSize: 11, fontWeight: '700', color: '#f43f5e' },
-  city: { fontSize: 11, color: '#9ca3af', marginBottom: 3 },
-  lastMsg: { fontSize: 13, color: '#6b7280' },
-  unreadBadge: { backgroundColor: '#f43f5e', borderRadius: 12, minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#0a0a0f' },
+  header: { padding: 20 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
+  subtitle: { fontSize: 14, color: '#888', marginTop: 4 },
+  list: { padding: 16 },
+  matchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  avatarContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#2a2a4e',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  avatar: { fontSize: 28 },
+  matchInfo: { flex: 1 },
+  matchName: { fontSize: 17, fontWeight: '600', color: '#fff' },
+  matchScore: { fontSize: 13, color: '#e91e63', marginTop: 2 },
+  lastMessage: { fontSize: 13, color: '#888', marginTop: 4 },
+  arrow: { color: '#555', fontSize: 18 },
+  emptyView: { alignItems: 'center', paddingTop: 80 },
+  emptyIcon: { fontSize: 64, marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
+  emptyText: { fontSize: 14, color: '#888', textAlign: 'center' },
 });
