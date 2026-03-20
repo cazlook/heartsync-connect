@@ -10,8 +10,10 @@
   "dependencies": {
     "expo": "~54.0.33",
     "expo-status-bar": "~2.0.1",
+    "expo-image-picker": "~16.0.6",
     "react": "18.3.1",
     "react-native": "0.76.9",
+    "react-native-worklets": "npm:react-native-worklets-core@latest",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.11.0",
     "@react-navigation/bottom-tabs": "^6.6.1",
@@ -20,8 +22,7 @@
     "react-native-gesture-handler": "~2.20.2",
     "@react-native-async-storage/async-storage": "2.1.2",
     "axios": "^1.7.0",
-    "socket.io-client": "^4.7.0",
-    "expo-image-picker": "~16.0.6"
+    "socket.io-client": "^4.7.0"
   },
   "private": true
 }
