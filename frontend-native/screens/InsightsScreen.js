@@ -1,20 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet,
-  SafeAreaView, ActivityIndicator,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useHeartRate } from '../contexts/HeartRateContext';
 import { API_URL } from '../constants/api';
 
 export default function InsightsScreen() {
   const { token } = useAuth();
+  const { baseline, heartRate, currentZScore } = useHeartRate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchInsights();
-  }, []);
+  useEffect(() => { fetchInsights(); }, []);
 
   const fetchInsights = async () => {
     try {
@@ -23,78 +29,66 @@ export default function InsightsScreen() {
       });
       setData(res.data);
     } catch {
-      // Dati di default per mostrare la UI
       setData({
         avg_cardiac_score: 72,
-        total_matches: 5,
-        total_swipes: 48,
-        top_match_score: 94,
-        weekly_activity: [65, 70, 60, 82, 75, 90, 72],
+        total_reactions: 0,
+        total_matches: 0,
+        reaction_accuracy: 0,
       });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
   };
+
+  const onRefresh = () => { setRefreshing(true); fetchInsights(); };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.centered}><ActivityIndicator color="#f43f5e" size="large" /></View>
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#e91e63" style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
   }
 
-  const weekdays = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
-  const maxActivity = data?.weekly_activity ? Math.max(...data.weekly_activity, 1) : 100;
+  const StatCard = ({ icon, label, value, unit }) => (
+    <View style={styles.statCard}>
+      <Text style={styles.statIcon}>{icon}</Text>
+      <Text style={styles.statValue}>{value}{unit && <Text style={styles.statUnit}> {unit}</Text>}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>I tuoi Insights</Text>
-        <Text style={styles.subtitle}>Analisi del tuo profilo cardiaco</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e91e63" />}
+      >
+        <Text style={styles.title}>Insights 📊</Text>
+        <Text style={styles.subtitle}>La tua attività cardiaca</Text>
 
-        <View style={styles.grid}>
-          <View style={[styles.card, styles.cardPrimary]}>
-            <Text style={styles.cardEmoji}>❤️</Text>
-            <Text style={styles.cardValue}>{data?.avg_cardiac_score ?? '--'}%</Text>
-            <Text style={styles.cardLabel}>Score medio</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardEmoji}>💑</Text>
-            <Text style={styles.cardValueDark}>{data?.total_matches ?? '--'}</Text>
-            <Text style={styles.cardLabelDark}>Match totali</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardEmoji}>👀</Text>
-            <Text style={styles.cardValueDark}>{data?.total_swipes ?? '--'}</Text>
-            <Text style={styles.cardLabelDark}>Profili visti</Text>
-          </View>
-          <View style={[styles.card, styles.cardGold]}>
-            <Text style={styles.cardEmoji}>🏆</Text>
-            <Text style={styles.cardValue}>{data?.top_match_score ?? '--'}%</Text>
-            <Text style={styles.cardLabel}>Best match</Text>
+        <View style={styles.liveCard}>
+          <Text style={styles.liveTitle}>Live</Text>
+          <Text style={styles.liveBpm}>{heartRate ? `${Math.round(heartRate)} BPM` : '-- BPM'}</Text>
+          <Text style={styles.liveZ}>Z-score: {currentZScore.toFixed(2)}</Text>
+          <View style={styles.baselineRow}>
+            <Text style={styles.baselineStat}>Baseline: {Math.round(baseline.mean)} BPM</Text>
+            <Text style={styles.baselineStat}>Std: {baseline.std?.toFixed(1) || '0.0'}</Text>
           </View>
         </View>
 
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Attività settimanale</Text>
-          <View style={styles.barsContainer}>
-            {weekdays.map((day, i) => {
-              const val = data?.weekly_activity?.[i] ?? 0;
-              const barH = (val / maxActivity) * 120;
-              return (
-                <View key={day} style={styles.barCol}>
-                  <View style={[styles.bar, { height: barH }]} />
-                  <Text style={styles.barLabel}>{day}</Text>
-                </View>
-              );
-            })}
-          </View>
+        <View style={styles.statsGrid}>
+          <StatCard icon="❤️" label="Score cardiaco" value={Math.round(data?.avg_cardiac_score || 0)} unit="%" />
+          <StatCard icon="⚡" label="Reazioni" value={data?.total_reactions || 0} />
+          <StatCard icon="💓" label="Match" value={data?.total_matches || 0} />
+          <StatCard icon="🎯" label="Precisione" value={Math.round(data?.reaction_accuracy || 0)} unit="%" />
         </View>
 
-        <View style={styles.tipCard}>
-          <Text style={styles.tipTitle}>💡 Consiglio del giorno</Text>
-          <Text style={styles.tipText}>
-            Il tuo battito cardiaco sincronizzato con qualcuno è la forma più autentica di connessione. Continua ad esplorare!
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>💡 Come funziona</Text>
+          <Text style={styles.infoText}>
+            Il tuo cuore risponde in modo involontario agli stimoli emotivi. Quando il tuo BPM supera la soglia z-score ≥ 1.5 per almeno 2 secondi, generiamo una reazione. Se anche l'altra persona reagisce a te, nasce un match autentico.{`\n\n`}Nessun swipe. Solo fisiologia reale.
           </Text>
         </View>
       </ScrollView>
@@ -103,27 +97,37 @@ export default function InsightsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f9fafb' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  container: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 26, fontWeight: '900', color: '#1a1a2e', marginTop: 8 },
-  subtitle: { fontSize: 14, color: '#9ca3af', marginBottom: 24, marginTop: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
-  card: { width: '47%', backgroundColor: '#fff', borderRadius: 20, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-  cardPrimary: { backgroundColor: '#f43f5e' },
-  cardGold: { backgroundColor: '#f59e0b' },
-  cardEmoji: { fontSize: 28, marginBottom: 8 },
-  cardValue: { fontSize: 28, fontWeight: '900', color: '#fff' },
-  cardValueDark: { fontSize: 28, fontWeight: '900', color: '#1a1a2e' },
-  cardLabel: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
-  cardLabelDark: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
-  chartCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
-  chartTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', marginBottom: 16 },
-  barsContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 140 },
-  barCol: { alignItems: 'center', flex: 1 },
-  bar: { width: 24, backgroundColor: '#f43f5e', borderRadius: 6 },
-  barLabel: { fontSize: 10, color: '#9ca3af', marginTop: 6 },
-  tipCard: { backgroundColor: '#fff0f3', borderRadius: 20, padding: 20, borderLeftWidth: 4, borderLeftColor: '#f43f5e' },
-  tipTitle: { fontSize: 15, fontWeight: '700', color: '#f43f5e', marginBottom: 8 },
-  tipText: { fontSize: 14, color: '#4b5563', lineHeight: 22 },
+  container: { flex: 1, backgroundColor: '#0a0a0f' },
+  content: { padding: 20 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
+  subtitle: { fontSize: 14, color: '#888', marginBottom: 20, marginTop: 4 },
+  liveCard: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e91e6340',
+  },
+  liveTitle: { fontSize: 12, color: '#e91e63', fontWeight: 'bold', marginBottom: 8 },
+  liveBpm: { fontSize: 48, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
+  liveZ: { fontSize: 14, color: '#888', marginBottom: 12 },
+  baselineRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  baselineStat: { fontSize: 13, color: '#555' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
+  statCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statIcon: { fontSize: 28, marginBottom: 8 },
+  statValue: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  statUnit: { fontSize: 16, color: '#888' },
+  statLabel: { fontSize: 12, color: '#888', marginTop: 4, textAlign: 'center' },
+  infoCard: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 20 },
+  infoTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
+  infoText: { fontSize: 14, color: '#888', lineHeight: 22 },
 });
