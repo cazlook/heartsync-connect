@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  FlatList, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,92 +18,96 @@ import { API_URL } from '../constants/api';
 export default function ChatScreen({ route, navigation }) {
   const { matchId, user } = route.params;
   const { token, user: me } = useAuth();
-  const { socket } = useSocket();
+  const { emit, on, off } = useSocket();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const flatListRef = useRef(null);
 
   useEffect(() => {
     fetchMessages();
-    if (socket) {
-      socket.emit('join_room', matchId);
-      socket.on('new_message', (msg) => {
-        setMessages((prev) => [...prev, msg]);
-      });
-    }
-    return () => {
-      if (socket) socket.off('new_message');
+    emit('join_room', matchId);
+
+    const handleNewMessage = (msg) => {
+      setMessages((prev) => [...prev, msg]);
     };
-  }, [socket, matchId]);
+    on('new_message', handleNewMessage);
+
+    navigation.setOptions({ title: user?.displayName || 'Chat' });
+
+    return () => {
+      off('new_message', handleNewMessage);
+    };
+  }, [matchId]);
 
   const fetchMessages = async () => {
     try {
       const { data } = await axios.get(`${API_URL}/api/chat/${matchId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setMessages(data);
-    } catch {}
+      setMessages(data.messages || []);
+    } catch (e) {
+      console.error('Failed to fetch messages:', e);
+    }
   };
 
   const sendMessage = async () => {
     if (!text.trim()) return;
-    const msg = { match_id: matchId, content: text.trim() };
+    const content = text.trim();
     setText('');
     try {
-      const { data } = await axios.post(`${API_URL}/api/chat/${matchId}/messages`, msg, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (socket) socket.emit('send_message', data);
-      else setMessages((prev) => [...prev, data]);
-    } catch {}
+      await axios.post(
+        `${API_URL}/api/chat/${matchId}/messages`,
+        { content },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (e) {
+      console.error('Failed to send message:', e);
+    }
   };
 
-  const renderItem = ({ item }) => {
-    const isMe = item.sender_id === me?.id;
+  const renderMessage = ({ item }) => {
+    const isMe = item.senderId === me?.id;
     return (
-      <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
-        <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextOther]}>
-          {item.content}
+      <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
+        <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>{item.content}</Text>
+        <Text style={styles.messageTime}>
+          {new Date(item.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
     );
   };
 
-  useEffect(() => {
-    if (messages.length > 0) flatListRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
-
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerName}>{user?.name}</Text>
-      </View>
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={90}
       >
         <FlatList
           ref={flatListRef}
           data={messages}
-          keyExtractor={(m, i) => m.id || String(i)}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+          renderItem={renderMessage}
+          contentContainerStyle={styles.messageList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
-        <View style={styles.inputRow}>
+        <View style={styles.inputBar}>
           <TextInput
             style={styles.input}
             value={text}
             onChangeText={setText}
             placeholder="Scrivi un messaggio..."
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#555"
             multiline
+            maxLength={500}
           />
-          <TouchableOpacity style={styles.sendBtn} onPress={sendMessage}>
-            <Text style={styles.sendText}>➤</Text>
+          <TouchableOpacity
+            style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
+            onPress={sendMessage}
+            disabled={!text.trim()}
+          >
+            <Text style={styles.sendIcon}>➤</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -105,20 +116,48 @@ export default function ChatScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f9fafb' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-  backBtn: { marginRight: 12 },
-  backText: { fontSize: 22, color: '#f43f5e' },
-  headerName: { fontSize: 18, fontWeight: '700', color: '#1a1a2e' },
-  list: { paddingHorizontal: 16, paddingVertical: 12 },
-  bubble: { maxWidth: '78%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8 },
-  bubbleMe: { backgroundColor: '#f43f5e', alignSelf: 'flex-end', borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: '#fff', alignSelf: 'flex-start', borderBottomLeftRadius: 4, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  bubbleText: { fontSize: 15 },
-  bubbleTextMe: { color: '#fff' },
-  bubbleTextOther: { color: '#1a1a2e' },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-  input: { flex: 1, backgroundColor: '#f9fafb', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, color: '#1a1a2e', maxHeight: 100, marginRight: 10 },
-  sendBtn: { backgroundColor: '#f43f5e', borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  sendText: { color: '#fff', fontSize: 18 },
+  container: { flex: 1, backgroundColor: '#0a0a0f' },
+  flex: { flex: 1 },
+  messageList: { padding: 16, paddingBottom: 8 },
+  messageBubble: {
+    maxWidth: '75%',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  myBubble: { backgroundColor: '#e91e63', alignSelf: 'flex-end', borderBottomRightRadius: 4 },
+  theirBubble: { backgroundColor: '#1a1a2e', alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
+  messageText: { fontSize: 15, lineHeight: 20 },
+  myText: { color: '#fff' },
+  theirText: { color: '#ddd' },
+  messageTime: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4, alignSelf: 'flex-end' },
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 12,
+    backgroundColor: '#0f0f1a',
+    borderTopWidth: 1,
+    borderTopColor: '#1a1a2e',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    color: '#fff',
+    fontSize: 15,
+    maxHeight: 100,
+    marginRight: 8,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e91e63',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: { backgroundColor: '#333' },
+  sendIcon: { color: '#fff', fontSize: 18 },
 });
