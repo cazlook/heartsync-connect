@@ -1,29 +1,31 @@
 /**
  * HealthConnectService.js
- * Android Health Connect (formerly Google Fit) heart rate integration
- * Abstracts Health Connect API behind a unified BiometricService interface
+ * Android Health Connect heart rate integration — lazy require edition.
+ *
+ * CRITICAL: react-native-health-connect uses TurboModules and CANNOT be required
+ * at module scope in Expo Go. All requires are deferred inside functions.
  */
-import { Platform, NativeModules, NativeEventEmitter } from 'react-native';
+import { Platform } from 'react-native';
 
 const MIN_BPM = 30;
 const MAX_BPM = 220;
-
-// Health Connect native module (requires react-native-health-connect or custom bridge)
-let HealthConnect = null;
-let _eventEmitter = null;
-
-if (Platform.OS === 'android') {
-  try {
-    HealthConnect = require('react-native-health-connect').default;
-  } catch (e) {
-    console.warn('react-native-health-connect not available');
-  }
-}
 
 let _subscriptionActive = false;
 let _lastBpm = null;
 let _pollInterval = null;
 let _bpmCallback = null;
+
+/**
+ * Lazily load react-native-health-connect. Returns null if unavailable.
+ */
+function getHealthConnect() {
+  if (Platform.OS !== 'android') return null;
+  try {
+    return require('react-native-health-connect').default;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Validate a BPM reading.
@@ -35,44 +37,46 @@ export function validateBpm(bpm) {
 }
 
 /**
- * Check if Health Connect is available on this device.
+ * Check if Health Connect is available. Safe in Expo Go.
  */
 export async function isAvailable() {
-  if (Platform.OS !== 'android' || !HealthConnect) return false;
+  const HealthConnect = getHealthConnect();
+  if (!HealthConnect) return false;
   try {
     const result = await HealthConnect.getSdkStatus();
-    return result === 3; // 3 = INSTALLED
+    return result === 3; // SdkAvailabilityStatus.SDK_AVAILABLE
   } catch {
     return false;
   }
 }
 
 /**
- * Request Health Connect permissions for heart rate.
- * Returns true if granted.
+ * Request Health Connect heart rate read permission.
+ * Returns false (no crash) when module is absent.
  */
 export async function requestAuthorization() {
-  if (Platform.OS !== 'android' || !HealthConnect) return false;
+  const HealthConnect = getHealthConnect();
+  if (!HealthConnect) return false;
   try {
     const granted = await HealthConnect.requestPermission([
       { accessType: 'read', recordType: 'HeartRate' },
     ]);
-    return granted && granted.length > 0;
+    return Array.isArray(granted) && granted.length > 0;
   } catch (e) {
-    console.error('Health Connect auth error:', e);
+    console.warn('Health Connect auth error:', e.message);
     return false;
   }
 }
 
 /**
- * Fetch latest heart rate sample from Health Connect.
- * @returns {{ bpm: number, timestamp: number } | null}
+ * Internal: fetch the most recent HR sample.
  */
 async function fetchLatestBpm() {
+  const HealthConnect = getHealthConnect();
   if (!HealthConnect) return null;
   try {
     const now = new Date();
-    const past = new Date(now.getTime() - 10000); // last 10 sec
+    const past = new Date(now.getTime() - 10000);
     const records = await HealthConnect.readRecords('HeartRate', {
       timeRangeFilter: {
         operator: 'between',
@@ -83,25 +87,28 @@ async function fetchLatestBpm() {
     if (!records || records.length === 0) return null;
     const latest = records[records.length - 1];
     if (!latest.samples || latest.samples.length === 0) return null;
-    const bpm = validateBpm(Math.round(latest.samples[latest.samples.length - 1].beatsPerMinute));
+    const bpm = validateBpm(
+      Math.round(latest.samples[latest.samples.length - 1].beatsPerMinute)
+    );
     if (bpm === null) return null;
     return { bpm, timestamp: new Date(latest.endTime).getTime() };
   } catch (e) {
-    console.error('Health Connect read error:', e);
+    console.warn('Health Connect read error:', e.message);
     return null;
   }
 }
 
 /**
- * Start monitoring heart rate via polling (every 2 seconds).
- * Health Connect does not support real-time streaming natively;
- * polling is the recommended approach.
- * @param {Function} callback - called with { bpm, timestamp }
+ * Start monitoring heart rate via 2-second polling.
+ * Returns a no-op if Health Connect is unavailable.
+ *
+ * @param {Function} callback - ({ bpm, timestamp }) => void
  * @returns {Function} unsubscribe
  */
 export function startMonitoring(callback) {
-  if (Platform.OS !== 'android' || !HealthConnect) {
-    console.warn('Health Connect not available on this platform');
+  const HealthConnect = getHealthConnect();
+  if (!HealthConnect) {
+    console.warn('Health Connect not available — use BpmSimulatorService in Expo Go');
     return () => {};
   }
 
