@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert, ScrollView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AuthScreen() {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -25,87 +33,90 @@ export default function AuthScreen() {
         await login(email, password);
       } else {
         if (!name) { Alert.alert('Errore', 'Inserisci il tuo nome'); setLoading(false); return; }
-        await register({ email, password, name });
+        await register(email, password, name);
       }
     } catch (e) {
-      Alert.alert('Errore', e?.response?.data?.detail || 'Qualcosa è andato storto');
+      Alert.alert('Errore', e?.response?.data?.message || 'Si è verificato un errore');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <View style={styles.logoContainer}>
-            <Text style={styles.logo}>💕</Text>
-            <Text style={styles.appName}>SyncLove</Text>
-            <Text style={styles.tagline}>Connetti i cuori che battono all'unisono</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <Text style={styles.logo}>💓</Text>
+            <Text style={styles.title}>SyncLove</Text>
+            <Text style={styles.subtitle}>Il matching che senti nel cuore</Text>
           </View>
 
-          <View style={styles.card}>
-            <View style={styles.tabRow}>
-              <TouchableOpacity
-                style={[styles.tab, mode === 'login' && styles.tabActive]}
-                onPress={() => setMode('login')}
-              >
-                <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Accedi</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tab, mode === 'register' && styles.tabActive]}
-                onPress={() => setMode('register')}
-              >
-                <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Registrati</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.tabs}>
+            <TouchableOpacity
+              style={[styles.tab, mode === 'login' && styles.tabActive]}
+              onPress={() => setMode('login')}
+            >
+              <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Accedi</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, mode === 'register' && styles.tabActive]}
+              onPress={() => setMode('register')}
+            >
+              <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Registrati</Text>
+            </TouchableOpacity>
+          </View>
 
+          <View style={styles.form}>
             {mode === 'register' && (
               <TextInput
                 style={styles.input}
                 placeholder="Il tuo nome"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor="#888"
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
               />
             )}
-
             <TextInput
               style={styles.input}
               placeholder="Email"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#888"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
-
             <TextInput
               style={styles.input}
               placeholder="Password"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#888"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
 
             <TouchableOpacity
-              style={[styles.btn, loading && styles.btnDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSubmit}
               disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.btnText}>
-                  {mode === 'login' ? 'Entra' : 'Crea account'}
+                <Text style={styles.buttonText}>
+                  {mode === 'login' ? 'Accedi' : 'Crea account'}
                 </Text>
               )}
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.disclaimer}>
+            Nessun swipe. Solo il battito del tuo cuore. 💗
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -113,20 +124,37 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff9fb' },
-  container: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  logoContainer: { alignItems: 'center', marginBottom: 32 },
+  container: { flex: 1, backgroundColor: '#0a0a0f' },
+  keyboardView: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  header: { alignItems: 'center', marginBottom: 40 },
   logo: { fontSize: 64, marginBottom: 8 },
-  appName: { fontSize: 34, fontWeight: '900', color: '#f43f5e', letterSpacing: -1 },
-  tagline: { fontSize: 14, color: '#9ca3af', marginTop: 6, textAlign: 'center' },
-  card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, shadowColor: '#f43f5e', shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } },
-  tabRow: { flexDirection: 'row', marginBottom: 20, backgroundColor: '#f3f4f6', borderRadius: 12, padding: 4 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  tabActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  tabText: { fontSize: 15, fontWeight: '600', color: '#9ca3af' },
-  tabTextActive: { color: '#f43f5e' },
-  input: { borderWidth: 1.5, borderColor: '#f3f4f6', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#1a1a2e', marginBottom: 14, backgroundColor: '#fafafa' },
-  btn: { backgroundColor: '#f43f5e', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  title: { fontSize: 32, fontWeight: 'bold', color: '#fff', marginBottom: 6 },
+  subtitle: { fontSize: 14, color: '#888', textAlign: 'center' },
+  tabs: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 12, marginBottom: 24, padding: 4 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  tabActive: { backgroundColor: '#e91e63' },
+  tabText: { color: '#888', fontWeight: '600' },
+  tabTextActive: { color: '#fff' },
+  form: { gap: 12 },
+  input: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#2a2a4e',
+    marginBottom: 4,
+  },
+  button: {
+    backgroundColor: '#e91e63',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  disclaimer: { color: '#555', textAlign: 'center', marginTop: 32, fontSize: 13 },
 });
