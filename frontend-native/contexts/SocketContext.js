@@ -1,80 +1,64 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+// SocketContext.js - HTTP polling fallback (no socket.io-client needed)
+// socket.io-client causes TurboModuleRegistry crash on iOS Expo Go SDK 54
+// Real WebSocket support requires a custom development build (not Expo Go)
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import { useAuth } from './AuthContext';
-import { WS_URL } from '../constants/api';
+import { API_URL } from '../constants/api';
 
 const SocketContext = createContext(null);
 
 export function SocketProvider({ children }) {
-  const { token, user } = useAuth();
-  const socketRef = useRef(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const { token } = useAuth();
+  const [connected, setConnected] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [newMatch, setNewMatch] = useState(null);
+  const pollIntervalRef = useRef(null);
+  const lastPollRef = useRef(null);
+
+  const poll = useCallback(async () => {
+    if (!token) return;
+    try {
+      const since = lastPollRef.current || new Date(Date.now() - 5000).toISOString();
+      const res = await axios.get(
+        `${API_URL}/api/events/poll?since=${encodeURIComponent(since)}`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+      );
+      lastPollRef.current = new Date().toISOString();
+      setConnected(true);
+      if (res.data?.events) {
+        res.data.events.forEach(event => {
+          if (event.type === 'match') setNewMatch(event.data);
+          if (event.type === 'notification') {
+            setNotifications(prev => [event.data, ...prev].slice(0, 50));
+          }
+        });
+      }
+    } catch (e) {
+      setConnected(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    if (token && user) {
-      socketRef.current = io(WS_URL, {
-        auth: { token },
-        transports: ['websocket'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-      });
+    if (!token) return;
+    poll();
+    pollIntervalRef.current = setInterval(poll, 5000);
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, [token, poll]);
 
-      socketRef.current.on('connect', () => {
-        setIsConnected(true);
-        console.log('Socket connected:', socketRef.current.id);
-      });
-
-      socketRef.current.on('disconnect', () => {
-        setIsConnected(false);
-        console.log('Socket disconnected');
-      });
-
-      socketRef.current.on('new_match', (data) => {
-        setNotifications(prev => [{ type: 'match', data, id: Date.now() }, ...prev]);
-      });
-
-      socketRef.current.on('new_message', (data) => {
-        setNotifications(prev => [{ type: 'message', data, id: Date.now() }, ...prev]);
-      });
-
-      socketRef.current.on('heart_reaction', (data) => {
-        setNotifications(prev => [{ type: 'reaction', data, id: Date.now() }, ...prev]);
-      });
-
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-        }
-        setIsConnected(false);
-      };
-    }
-  }, [token, user]);
-
-  const emit = (event, data) => {
-    if (socketRef.current && isConnected) {
-      socketRef.current.emit(event, data);
-    }
-  };
-
-  const on = (event, callback) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, callback);
-    }
-  };
-
-  const off = (event, callback) => {
-    if (socketRef.current) {
-      socketRef.current.off(event, callback);
-    }
-  };
-
-  const clearNotifications = () => setNotifications([]);
+  const clearNewMatch = useCallback(() => setNewMatch(null), []);
+  const clearNotifications = useCallback(() => setNotifications([]), []);
 
   return (
-    <SocketContext.Provider value={{ isConnected, emit, on, off, notifications, clearNotifications }}>
+    <SocketContext.Provider value={{
+      connected,
+      notifications,
+      newMatch,
+      clearNewMatch,
+      clearNotifications,
+    }}>
       {children}
     </SocketContext.Provider>
   );
