@@ -5,6 +5,20 @@ import { API_URL } from '../constants/api';
 
 const AuthContext = createContext(null);
 
+// Adapter: normalizza la risposta sia da FastAPI che da backend-v2
+function parseAuthResponse(data) {
+  // FastAPI: { access_token, refresh_token, token_type, user_id }
+  // backend-v2: { tokens: { access, refresh }, userId }
+  if (data.access_token) {
+    return {
+      tokens: { access: data.access_token, refresh: data.refresh_token },
+      userId: data.user_id,
+    };
+  }
+  // backend-v2 format
+  return { tokens: data.tokens, userId: data.userId };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -31,10 +45,10 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const res = await axios.post(`${API_URL}/api/auth/login`, { email, password });
-    const { tokens, userId } = res.data;
+    const { tokens, userId } = parseAuthResponse(res.data);
     const userData = { id: userId, email };
     await AsyncStorage.setItem('authToken', tokens.access);
-    await AsyncStorage.setItem('authRefresh', tokens.refresh);
+    await AsyncStorage.setItem('authRefresh', tokens.refresh || '');
     await AsyncStorage.setItem('authUser', JSON.stringify(userData));
     setToken(tokens.access);
     setUser(userData);
@@ -43,10 +57,10 @@ export function AuthProvider({ children }) {
 
   const register = async (email, password, displayName) => {
     const res = await axios.post(`${API_URL}/api/auth/register`, { email, password, displayName });
-    const { tokens, userId } = res.data;
+    const { tokens, userId } = parseAuthResponse(res.data);
     const userData = { id: userId, email, displayName };
     await AsyncStorage.setItem('authToken', tokens.access);
-    await AsyncStorage.setItem('authRefresh', tokens.refresh);
+    await AsyncStorage.setItem('authRefresh', tokens.refresh || '');
     await AsyncStorage.setItem('authUser', JSON.stringify(userData));
     setToken(tokens.access);
     setUser(userData);
@@ -54,9 +68,19 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await AsyncStorage.multiRemove(['authToken', 'authRefresh', 'authUser']);
-    setToken(null);
-    setUser(null);
+    try {
+      if (token) {
+        await axios.post(`${API_URL}/api/auth/logout`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch (e) {
+      console.error('Logout error:', e);
+    } finally {
+      await AsyncStorage.multiRemove(['authToken', 'authRefresh', 'authUser']);
+      setToken(null);
+      setUser(null);
+    }
   };
 
   return (
@@ -71,5 +95,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
-
-export default AuthContext;
