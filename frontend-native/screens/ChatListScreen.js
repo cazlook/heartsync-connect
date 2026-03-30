@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, Image, SafeAreaView,
 } from 'react-native';
-import axios from 'axios';
+import api from '../constants/api_client';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../constants/api';
 
@@ -14,8 +14,8 @@ export default function ChatListScreen({ navigation }) {
 
   const fetchMatches = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/chat/matches`, {
-        headers: { Authorization: `Bearer ${token}` },
+            const { data } = await api.get('/api/matching/my-matches');
+        
       });
       setMatches(data);
     } catch {}
