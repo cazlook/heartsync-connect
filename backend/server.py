@@ -156,6 +156,64 @@ async def get_user_matches(
 @api_router.get("/chat/{match_id}/messages")
 async def get_match_messages(
     match_id: str,
+
+    # ALIAS per compatibilità frontend
+@api_router.get("/matching/my-matches", response_model=List[Match])
+async def get_my_matches_alias(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Alias endpoint per /chat/matches"""
+    return await get_user_matches(current_user, database)
+
+# ENDPOINT DISCOVERY
+@api_router.get("/users/discovery")
+async def get_discovery_users(
+    limit: int = Query(default=20, le=100),
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Get nearby users for discovery based on location and preferences"""
+    # Get current user
+    user = await database.users.find_one({"id": current_user.id})
+    user_location = user.get("location") if user else None
+    preferences = user.get("preferences", {}) if user else {}
+    
+    # Build query
+    query = {"id": {"$ne": current_user.id}}  # Exclude self
+    
+    # Apply age filter
+    age_min = preferences.get("age_min", 18)
+    age_max = preferences.get("age_max", 99)
+    query["age"] = {"$gte": age_min, "$lte": age_max}
+    
+    # Get nearby users
+    users = await database.users.find(query).limit(limit).to_list(limit)
+    
+    # Filter by distance if user has location
+    if user_location and user_location.get("latitude"):
+        max_distance = preferences.get("distance_max", 50)
+        users = filter_by_distance(
+            users,
+            user_location["latitude"],
+            user_location["longitude"],
+            max_distance
+        )
+    
+    # Format response
+    result = []
+    for u in users:
+        result.append({
+            "id": u["id"],
+            "name": u["name"],
+            "age": u.get("age"),
+            "city": u.get("city"),
+            "bio": u.get("bio"),
+            "photos": u.get("photos", []),
+            "distance_km": u.get("distance_km")
+        })
+    
+    return {"users": result}
     limit: int = Query(default=50, le=200),
     before: Optional[str] = None,
     current_user: UserResponse = Depends(get_current_user_dependency),
@@ -1047,6 +1105,16 @@ async def save_biometric_baseline(
     baseline: dict,
     current_user: UserResponse = Depends(get_current_user_dependency),
     database=Depends(get_db)
+
+    # ALIAS per compatibilità frontend
+@api_router.post("/biometrics/baseline")
+async def save_biometric_baseline_alias(
+    baseline: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database=Depends(get_db)
+):
+    """Alias endpoint per /biometric/baseline"""
+    return await save_biometric_baseline(baseline, current_user, database)
 ):
     """Salva la baseline biometrica dell'utente nel profilo."""
     await database.users.update_one(
