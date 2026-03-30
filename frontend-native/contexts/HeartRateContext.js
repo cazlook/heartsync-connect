@@ -2,13 +2,9 @@ import React, { createContext, useContext, useState, useRef, useCallback, useEff
 import axios from 'axios';
 import { useAuth } from './AuthContext';
 import { API_URL } from '../constants/api';
+import BiometricService from '../src/services/BiometricService';
 
 const HeartRateContext = createContext(null);
-
-const BASELINE_WINDOW = 30; // seconds
-const Z_THRESHOLD = 1.5;
-const MIN_DURATION_MS = 2000;
-const MAX_BPM_VALID = 120;
 
 export function HeartRateProvider({ children }) {
   const { token } = useAuth();
@@ -19,13 +15,19 @@ export function HeartRateProvider({ children }) {
   const [currentZScore, setCurrentZScore] = useState(0);
   const [reactionActive, setReactionActive] = useState(false);
   const [targetUserId, setTargetUserId] = useState(null);
+  const [lastMatch, setLastMatch] = useState(null);
+  const [cardiacSource, setCardiacSource] = useState('simulator');
 
-  const intervalRef = useRef(null);
-  const reactionStartRef = useRef(null);
-  const bpmHistoryRef = useRef([]);
+  const monitorRef = useRef(null);  // { stop: fn } from BiometricService
   const welfordRef = useRef({ mean: 70, M2: 25, count: 0 });
+  const tokenRef = useRef(token);
+  const targetRef = useRef(targetUserId);
 
-  // Welford online algorithm for dynamic baseline
+  // Keep refs in sync
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { targetRef.current = targetUserId; }, [targetUserId]);
+
+  // Welford update (client-side mirror, server is authoritative)
   const updateBaseline = useCallback((bpm) => {
     const w = welfordRef.current;
     w.count += 1;
@@ -37,90 +39,108 @@ export function HeartRateProvider({ children }) {
     const std = Math.sqrt(variance);
     welfordRef.current = { ...w, std };
     setBaseline({ mean: w.mean, std, count: w.count });
-    if (w.count >= BASELINE_WINDOW) {
+    if (w.count >= 30) {
       setIsCalibrated(true);
     }
   }, []);
 
-  const computeZScore = useCallback((bpm) => {
-    const { mean, std } = welfordRef.current;
-    const effectiveStd = Math.max(std || 5, 3);
-    return (bpm - mean) / effectiveStd;
-  }, []);
-
-  const processBpm = useCallback(async (bpm) => {
+  /**
+   * processBpm: called on every BPM reading from BiometricService.
+   * Sends BPM to backend cardiac engine; handles response.
+   */
+  const processBpm = useCallback(async ({ bpm }) => {
     if (!bpm || bpm <= 0 || bpm > 200) return;
+    setHeartRate(bpm);
     updateBaseline(bpm);
-    const z = computeZScore(bpm);
-    setCurrentZScore(z);
 
-    const isValidReaction =
-      isCalibrated &&
-      z >= Z_THRESHOLD &&
-      bpm < MAX_BPM_VALID &&
-      targetUserId;
+    const currentToken = tokenRef.current;
+    const currentTarget = targetRef.current;
 
-    if (isValidReaction) {
-      if (!reactionStartRef.current) {
-        reactionStartRef.current = Date.now();
+    if (!currentToken) return;
+
+    try {
+      const body = { bpm };
+      if (currentTarget) body.target_id = currentTarget;
+
+      const res = await axios.post(
+        `${API_URL}/api/biometrics/cardiac/heartbeat`,
+        body,
+        { headers: { Authorization: `Bearer ${currentToken}` } }
+      );
+
+      const data = res.data;
+
+      // Update z_score from server (authoritative)
+      if (typeof data.z_score === 'number') {
+        setCurrentZScore(data.z_score);
       }
-      const duration = Date.now() - reactionStartRef.current;
-      if (duration >= MIN_DURATION_MS) {
+      // Update calibration from server
+      if (data.is_calibrated) {
+        setIsCalibrated(true);
+      }
+      // Update baseline from server
+      if (data.baseline_mean) {
+        setBaseline(prev => ({
+          ...prev,
+          mean: data.baseline_mean,
+          std: data.baseline_std || prev.std,
+          count: data.count || prev.count,
+        }));
+      }
+      // Reaction detected
+      if (data.reaction && data.reaction !== 'below_confidence_threshold') {
         setReactionActive(true);
-        // Send reaction to backend
-        try {
-          await axios.post(
-            `${API_URL}/api/biometrics/reaction`,
-            {
-              targetUserId,
-              zScore: z,
-              bpm,
-              duration,
-              confidence: Math.min(1.0, duration / 5000),
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-        } catch (e) {
-          console.error('Failed to send reaction:', e);
-        }
+      } else {
+        setReactionActive(false);
       }
-    } else {
-      reactionStartRef.current = null;
-      setReactionActive(false);
+      // Match created!
+      if (data.match_created) {
+        setLastMatch({
+          matchId: data.match_id,
+          cardiacScore: data.cardiac_score,
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't interrupt BPM stream
+      if (__DEV__) console.warn('[HeartRateContext] cardiac/heartbeat error:', e.message);
     }
-  }, [isCalibrated, targetUserId, token, updateBaseline, computeZScore]);
+  }, [updateBaseline]);
 
   const startMonitoring = useCallback((userId = null) => {
-    if (isMonitoring) return;
+    if (monitorRef.current) return; // already monitoring
     setTargetUserId(userId);
     setIsMonitoring(true);
-    intervalRef.current = setInterval(() => {
-      // Simulator fallback - replace with HealthKit/Health Connect in production
-      const simulatedBpm = Math.floor(Math.random() * 40) + 60;
-      setHeartRate(simulatedBpm);
-      processBpm(simulatedBpm);
-    }, 1000);
-  }, [isMonitoring, processBpm]);
+
+    const monitor = BiometricService.startMonitoring(processBpm);
+    monitorRef.current = monitor;
+    setCardiacSource(monitor.source);
+    console.log('[HeartRateContext] Monitoring started, source:', monitor.source);
+  }, [processBpm]);
 
   const stopMonitoring = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (monitorRef.current) {
+      monitorRef.current.stop();
+      monitorRef.current = null;
     }
+    BiometricService.stopMonitoring();
     setIsMonitoring(false);
     setReactionActive(false);
-    reactionStartRef.current = null;
   }, []);
 
   const resetBaseline = useCallback(() => {
     welfordRef.current = { mean: 70, M2: 25, count: 0 };
     setBaseline({ mean: 70, std: 5, count: 0 });
     setIsCalibrated(false);
+    setCurrentZScore(0);
   }, []);
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (monitorRef.current) {
+        monitorRef.current.stop();
+        monitorRef.current = null;
+      }
+      BiometricService.stopMonitoring();
     };
   }, []);
 
@@ -134,6 +154,8 @@ export function HeartRateProvider({ children }) {
         currentZScore,
         reactionActive,
         targetUserId,
+        lastMatch,
+        cardiacSource,
         startMonitoring,
         stopMonitoring,
         resetBaseline,
