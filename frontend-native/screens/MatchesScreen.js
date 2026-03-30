@@ -8,23 +8,50 @@ import {
   ActivityIndicator,
   SafeAreaView,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useHeartRate } from '../contexts/HeartRateContext';
 import { API_URL } from '../constants/api';
 
 export default function MatchesScreen({ navigation }) {
   const { token } = useAuth();
+  const { lastMatch } = useHeartRate();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const lastMatchRef = React.useRef(null);
 
   const fetchMatches = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/matching/matches`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMatches(data.matches || []);
+      // Try cardiac matches first, fallback to regular matches
+      let matchList = [];
+      try {
+        const { data } = await axios.get(`${API_URL}/api/cardiac/matches`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        matchList = (data.matches || []).map(m => ({
+          id: m.id,
+          cardiacScore: m.cardiac_score,
+          matchedAt: m.created_at,
+          otherUser: m.other_user,
+          avgZAtoB: m.avg_z_A_to_B,
+          avgZBtoA: m.avg_z_B_to_A,
+        }));
+      } catch {
+        // Fallback to standard matches
+        const { data } = await axios.get(`${API_URL}/api/chat/matches`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        matchList = (data || []).map(m => ({
+          id: m.id,
+          cardiacScore: m.cardiac_score,
+          matchedAt: m.matched_at,
+          otherUser: { id: m.user2_id, name: 'Utente' },
+        }));
+      }
+      setMatches(matchList);
     } catch (e) {
       console.error('Failed to fetch matches:', e);
     } finally {
@@ -33,7 +60,21 @@ export default function MatchesScreen({ navigation }) {
     }
   }, [token]);
 
-  useEffect(() => { fetchMatches(); }, [fetchMatches]);
+  useEffect(() => {
+    fetchMatches();
+  }, [fetchMatches]);
+
+  // React to new cardiac match from HeartRateContext
+  useEffect(() => {
+    if (lastMatch && lastMatch !== lastMatchRef.current) {
+      lastMatchRef.current = lastMatch;
+      Alert.alert(
+        '💗 Nuovo Match Cardiaco!',
+        `Sintonia al ${Math.round(lastMatch.cardiacScore || 0)}%! Il tuo cuore ha riconosciuto qualcuno.`,
+        [{ text: 'Vedi Match', onPress: () => fetchMatches() }]
+      );
+    }
+  }, [lastMatch, fetchMatches]);
 
   const onRefresh = () => { setRefreshing(true); fetchMatches(); };
 
@@ -53,7 +94,7 @@ export default function MatchesScreen({ navigation }) {
       </View>
       <FlatList
         data={matches}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e91e63" />}
         ListEmptyComponent={
@@ -72,10 +113,10 @@ export default function MatchesScreen({ navigation }) {
               <Text style={styles.avatar}>👤</Text>
             </View>
             <View style={styles.matchInfo}>
-              <Text style={styles.matchName}>{item.otherUser?.displayName || 'Utente'}</Text>
+              <Text style={styles.matchName}>{item.otherUser?.name || item.otherUser?.displayName || 'Utente'}</Text>
               <Text style={styles.matchScore}>❤️ Sintonia: {Math.round(item.cardiacScore || 0)}%</Text>
-              {item.lastMessage && (
-                <Text style={styles.lastMessage} numberOfLines={1}>{item.lastMessage}</Text>
+              {item.avgZAtoB !== undefined && (
+                <Text style={styles.zScoreText}>z: {item.avgZAtoB?.toFixed(2)} ↔ {item.avgZBtoA?.toFixed(2)}</Text>
               )}
             </View>
             <Text style={styles.arrow}>❯</Text>
@@ -92,28 +133,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   subtitle: { fontSize: 14, color: '#888', marginTop: 4 },
   list: { padding: 16 },
-  matchCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  avatarContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#2a2a4e',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
+  matchCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, marginBottom: 12 },
+  avatarContainer: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#2a2a4e', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   avatar: { fontSize: 28 },
   matchInfo: { flex: 1 },
   matchName: { fontSize: 17, fontWeight: '600', color: '#fff' },
   matchScore: { fontSize: 13, color: '#e91e63', marginTop: 2 },
-  lastMessage: { fontSize: 13, color: '#888', marginTop: 4 },
+  zScoreText: { fontSize: 11, color: '#666', marginTop: 2 },
   arrow: { color: '#555', fontSize: 18 },
   emptyView: { alignItems: 'center', paddingTop: 80 },
   emptyIcon: { fontSize: 64, marginBottom: 16 },
