@@ -12,7 +12,12 @@ from datetime import datetime
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from models import (
+from models import ,
+    CardiacReaction, CardiacMatch, UserBaseline
+from cardiac_engine import (
+    WelfordBaseline, SignalWindow, compute_z_score,
+    compute_confidence, attempt_cardiac_match, generate_scenario_bpm
+)
     UserCreate, UserLogin, TokenResponse, UserResponse, UserUpdate,
     SwipeCreate, RefreshRequest,
     Match, ChatMessage, ChatMessageCreate, Notification, FCMToken,
@@ -1658,4 +1663,234 @@ async def shutdown_db_client():
 
 # Import socket server and create Socket.IO ASGI app
 from socket_server import sio
+
+# ========== CARDIAC ENGINE ENDPOINTS ==========
+
+# Storage in-memory per baseline e finestre (in produzione usare Redis o DB)
+user_baselines: dict[str, WelfordBaseline] = {}
+user_windows: dict[str, SignalWindow] = {}
+
+
+@api_router.post("/biometrics/cardiac/heartbeat")
+async def cardiac_heartbeat(
+    bpm_data: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Endpoint principale per ingest BPM con algoritmo cardiac completo.
+    
+    Body:
+        bpm: float
+        target_id: str (opzionale, per reazioni A→B)
+    """
+    bpm = float(bpm_data.get("bpm", 70))
+    target_id = bpm_data.get("target_id")
+    user_id = current_user.id
+    
+    # 1. Aggiorna baseline Welford
+    if user_id not in user_baselines:
+        user_baselines[user_id] = WelfordBaseline()
+    
+    baseline = user_baselines[user_id]
+    new_mean, new_std = baseline.update(bpm)
+    
+    # Salva baseline in DB
+    await database.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "baseline_mean": new_mean,
+            "baseline_std": new_std,
+            "baseline_count": baseline.count,
+            "baseline_is_calibrated": baseline.is_calibrated(),
+            "baseline_updated_at": datetime.utcnow()
+        }},
+        upsert=True
+    )
+    
+    # 2. Calcola z-score
+    z = compute_z_score(bpm, new_mean, new_std)
+    
+    response_data = {
+        "bpm": bpm,
+        "z_score": round(z, 2),
+        "baseline_mean": round(new_mean, 1),
+        "baseline_std": round(new_std, 1),
+        "is_calibrated": baseline.is_calibrated(),
+        "count": baseline.count
+    }
+    
+    # Se non c'è target, non fare detection reazione
+    if not target_id:
+        return response_data
+    
+    # 3. ProcessWindow per detection reazione
+    window_key = f"{user_id}_{target_id}"
+    if window_key not in user_windows:
+        user_windows[window_key] = SignalWindow()
+    
+    window = user_windows[window_key]
+    window.add_point(datetime.utcnow(), bpm, z)
+    
+    result = window.process_window()
+    
+    if not result:
+        response_data["reaction"] = None
+        return response_data
+    
+    # 4. Calcola confidence
+    confidence = compute_confidence(
+        result["duration"],
+        result["stability"],
+        result["valid_signals_count"]
+    )
+    
+    # 5. Se confidence >= 0.4, salva CardiacReaction
+    if confidence >= 0.4:
+        reaction_doc = {
+            "id": str(uuid.uuid4()),
+            "viewer_id": user_id,
+            "target_id": target_id,
+            "avg_z": result["avg_z"],
+            "confidence": confidence,
+            "duration": result["duration"],
+            "valid_signals_count": result["valid_signals_count"],
+            "stability": result["stability"],
+            "variance_z": result["variance_z"],
+            "created_at": datetime.utcnow()
+        }
+        await database.cardiac_reactions.insert_one(reaction_doc)
+        
+        logger.info(
+            f"💓 CardiacReaction salvata: {user_id}→{target_id}, "
+            f"z={result['avg_z']:.2f}, conf={confidence:.2f}"
+        )
+        
+        # 6. Tenta matching A↔B
+        match = await attempt_cardiac_match(database, user_id, target_id)
+        if match:
+            response_data["match_created"] = True
+            response_data["match_id"] = match["id"]
+            response_data["cardiac_score"] = match["cardiac_score"]
+        else:
+            response_data["match_created"] = False
+        
+        response_data["reaction"] = {
+            "id": reaction_doc["id"],
+            "avg_z": round(result["avg_z"], 2),
+            "confidence": round(confidence, 2),
+            "duration": round(result["duration"], 1),
+            "valid_signals": result["valid_signals_count"]
+        }
+    else:
+        response_data["reaction"] = "below_confidence_threshold"
+    
+    return response_data
+
+
+@api_router.post("/biometrics/cardiac/simulate-bpm")
+async def simulate_cardiac_bpm(
+    sim_data: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency)
+):
+    """Simula scenari BPM per debug e test.
+    
+    Body:
+        pattern: str (none | medium | high | noise | spike)
+        duration_s: int (default 20)
+        target_id: str (opzionale)
+    """
+    pattern = sim_data.get("pattern", "medium")
+    duration_s = int(sim_data.get("duration_s", 20))
+    target_id = sim_data.get("target_id")
+    
+    # Genera sequenza BPM
+    baseline_mean = user_baselines.get(current_user.id)
+    if baseline_mean:
+        bpm_mean = baseline_mean.mean
+    else:
+        bpm_mean = 70.0
+    
+    sequence = generate_scenario_bpm(pattern, bpm_mean, duration_s)
+    
+    # Log eventi
+    events_log = []
+    for ts, bpm in sequence:
+        events_log.append({
+            "timestamp": ts.isoformat(),
+            "bpm": round(bpm, 1)
+        })
+    
+    return {
+        "pattern": pattern,
+        "duration_s": duration_s,
+        "baseline_mean": round(bpm_mean, 1),
+        "events_count": len(events_log),
+        "events": events_log[:10],  # primi 10
+        "message": "Use POST /biometrics/cardiac/heartbeat to process each event"
+    }
+
+
+@api_router.get("/cardiac/matches")
+async def get_cardiac_matches(
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Ottieni tutti i match cardiaci dell'utente."""
+    matches = await database.cardiac_matches.find({
+        "$or": [
+            {"user1_id": current_user.id},
+            {"user2_id": current_user.id}
+        ]
+    }).sort("created_at", -1).to_list(100)
+    
+    result = []
+    for m in matches:
+        other_id = m["user2_id"] if m["user1_id"] == current_user.id else m["user1_id"]
+        other_user = await database.users.find_one({"id": other_id})
+        
+        result.append({
+            "id": m["id"],
+            "cardiac_score": m["cardiac_score"],
+            "created_at": m["created_at"].isoformat(),
+            "other_user": {
+                "id": other_id,
+                "name": other_user.get("name", "Unknown") if other_user else "Unknown",
+                "photos": other_user.get("photos", []) if other_user else []
+            },
+            "avg_z_A_to_B": round(m["avg_z_A_to_B"], 2),
+            "avg_z_B_to_A": round(m["avg_z_B_to_A"], 2),
+            "confidence_A_to_B": round(m["confidence_A_to_B"], 2),
+            "confidence_B_to_A": round(m["confidence_B_to_A"], 2)
+        })
+    
+    return {"matches": result, "count": len(result)}
+
+
+@api_router.get("/cardiac/reactions/{user_id}")
+async def get_user_cardiac_reactions(
+    user_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),
+    database = Depends(get_db)
+):
+    """Ottieni reazioni cardiache dell'utente verso altri profili."""
+    reactions = await database.cardiac_reactions.find({
+        "viewer_id": user_id
+    }).sort("created_at", -1).limit(50).to_list(50)
+    
+    result = []
+    for r in reactions:
+        target = await database.users.find_one({"id": r["target_id"]})
+        result.append({
+            "id": r["id"],
+            "target_id": r["target_id"],
+            "target_name": target.get("name") if target else "Unknown",
+            "avg_z": round(r["avg_z"], 2),
+            "confidence": round(r["confidence"], 2),
+            "duration": round(r["duration"], 1),
+            "valid_signals_count": r["valid_signals_count"],
+            "created_at": r["created_at"].isoformat()
+        })
+    
+    return {"reactions": result, "count": len(result)}
+
 app = socketio.ASGIApp(sio, fastapi_app)
