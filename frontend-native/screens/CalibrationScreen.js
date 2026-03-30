@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+from 'react-native'  from 'react-native-safe-area-context'
+  import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, Animated, Alert,
 } from 'react-native';
-import axios from 'axios';
+import api from '../constants/api_client';
 import { useAuth } from '../contexts/AuthContext';
 import { useHeartRate } from '../contexts/HeartRateContext';
 import { API_URL } from '../constants/api';
-
 export default function CalibrationScreen({ navigation }) {
   const { token } = useAuth();
   const { baselineBpm } = useHeartRate();
@@ -40,11 +40,11 @@ export default function CalibrationScreen({ navigation }) {
 
   const saveBpm = async (bpmValue) => {
     try {
-      await axios.post(`${API_URL}/api/users/baseline-bpm`, { bpm: bpmValue }, {
-        headers: { Authorization: `Bearer ${token}` },
+      await api.post('/api/biometrics/baseline', { bpm: bpmValue });
+        
       });
     } catch {}
-  };
+
 
   return (
     <SafeAreaView style={styles.safe}>
