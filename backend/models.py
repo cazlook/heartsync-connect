@@ -258,3 +258,45 @@ class PremiumSubscription(BaseModel):
     end_date: datetime
     active: bool = True
 
+
+
+# ========== CARDIAC ENGINE MODELS ==========
+
+class CardiacReaction(BaseModel):
+    """Reazione cardiaca validata dal SignalWindow."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    viewer_id: str
+    target_id: str
+    avg_z: float
+    confidence: float
+    duration: float
+    valid_signals_count: int
+    stability: float
+    variance_z: float
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CardiacMatch(BaseModel):
+    """Match cardiaco creato da reazioni reciproche A<->B."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user1_id: str
+    user2_id: str
+    cardiac_score: float  # 0-100
+    reaction_A_to_B_id: str
+    reaction_B_to_A_id: str
+    avg_z_A_to_B: float
+    avg_z_B_to_A: float
+    confidence_A_to_B: float
+    confidence_B_to_A: float
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class UserBaseline(BaseModel):
+    """Stato Welford per un utente."""
+    user_id: str
+    count: int = 0
+    mean: float = 70.0
+    M2: float = 0.0
+    std: float = 5.0
+    is_calibrated: bool = False
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
